@@ -204,13 +204,20 @@ with st.spinner("Memuat data..."):
     n_ps_raw = len(df_ps_raw)
 
     # Filter 1: hanya APPID yang ada di master ESCORE
-    # Filter 2: status CHECK_PRESCREENING_REQUEST_APPROVE atau _DENIED
-    PS_STATUS = ["CHECK_PRESCREENING_REQUEST_APPROVE", "CHECK_PRESCREENING_REQUEST_DENIED"]
-    df_ps = df_ps_raw[
-        df_ps_raw["APPID"].isin(master_appids) &
-        df_ps_raw["STATUS"].isin(PS_STATUS)
-    ].copy()
+    df_ps_escore = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+
+    # Filter 2: status mengandung APPROVE atau DENIED (case-insensitive, trim spasi)
+    if "STATUS" in df_ps_escore.columns:
+        status_clean = df_ps_escore["STATUS"].astype(str).str.strip().str.upper()
+        mask_status = status_clean.str.contains("APPROVED|DENIED", na=False)
+        df_ps = df_ps_escore[mask_status].copy()
+    else:
+        df_ps = df_ps_escore.copy()
+
     n_ps_filtered = len(df_ps)
+
+    # Debug: tampilkan unique STATUS yang ditemukan
+    _all_status = df_ps_escore["STATUS"].dropna().unique().tolist() if "STATUS" in df_ps_escore.columns else []
 
     # ── STEP 3: SLIK ──
     df_slik = pd.read_excel(slik_path, sheet_name=slik_sheet)
@@ -240,6 +247,12 @@ with st.spinner("Memuat data..."):
     n_match    = int(df["_slik_found"].sum())
     n_nomatch  = int((~df["_slik_found"]).sum())
     df_sla     = df[df["_slik_found"]].copy()   # 2,765 baris yang punya SLA
+
+# ─────────────────────────────────────────────
+# DEBUG: tampilkan status unik kalau match = 0
+# ─────────────────────────────────────────────
+if n_ps_filtered == 0 and _all_status:
+    st.warning(f"⚠️ Tidak ada baris yang lolos filter STATUS APPROVE/DENIED. Nilai STATUS yang ditemukan di file: `{'`, `'.join([str(s) for s in _all_status[:20]])}`")
 
 # ─────────────────────────────────────────────
 # FLOW SUMMARY
