@@ -9,7 +9,8 @@ import os
 # PAGE CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="SLA SLIK PRE SCREENING",
+    page_title="SLA Dashboard",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -19,71 +20,58 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
-
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; background:#050810; color:#fff; }
-.stApp { background:#050810; }
-.stApp::before {
-    content:''; position:fixed; top:0; left:0; right:0; bottom:0;
-    background: radial-gradient(ellipse 80% 50% at 20% 10%, rgba(59,130,246,0.07) 0%, transparent 60%),
-                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,0.06) 0%, transparent 60%);
-    pointer-events:none; z-index:0;
+html, body, [class*="css"] { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0d1117; color:#f0f6fc; }
+.stApp { background:#0d1117; }
+section[data-testid="stSidebar"] { background:#161b22 !important; border-right:1px solid #30363d; }
+section[data-testid="stSidebar"] * { color:#f0f6fc !important; }
+section[data-testid="stSidebar"] input {
+    background:#21262d !important; border:1px solid #30363d !important;
+    color:#f0f6fc !important; border-radius:6px !important;
 }
-section[data-testid="stSidebar"] { background:#080c18 !important; border-right:1px solid rgba(255,255,255,0.06); }
-section[data-testid="stSidebar"] * { color:#fff !important; }
-section[data-testid="stSidebar"] .stTextInput input {
-    background:rgba(255,255,255,0.05) !important; border:1px solid rgba(255,255,255,0.1) !important;
-    color:#fff !important; border-radius:8px !important;
-}
+section[data-testid="stSidebar"] label { color:#8b949e !important; font-size:12px !important; }
 [data-testid="metric-container"] {
-    background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);
-    border-radius:16px; padding:20px 24px;
+    background:#161b22; border:1px solid #30363d;
+    border-radius:12px; padding:20px 24px;
 }
-[data-testid="metric-container"]:hover { border-color:rgba(255,255,255,0.18); }
 [data-testid="metric-container"] label {
-    font-family:'Inter',sans-serif !important; font-size:11px !important; font-weight:500 !important;
-    color:rgba(255,255,255,0.45) !important; letter-spacing:1.2px; text-transform:uppercase;
+    font-size:11px !important; font-weight:600 !important;
+    color:#8b949e !important; letter-spacing:0.8px; text-transform:uppercase;
 }
 [data-testid="metric-container"] [data-testid="stMetricValue"] {
-    font-family:'Syne',sans-serif !important; font-size:2rem !important;
-    color:#fff !important; font-weight:700; letter-spacing:-0.5px;
+    font-size:1.8rem !important; color:#f0f6fc !important; font-weight:700;
 }
-[data-testid="metric-container"] [data-testid="stMetricDelta"] { font-size:11px !important; color:rgba(255,255,255,0.45) !important; }
+[data-testid="metric-container"] [data-testid="stMetricDelta"] {
+    font-size:12px !important; color:#8b949e !important;
+}
 .section-title {
-    font-family:'Inter',sans-serif; font-size:10px; font-weight:600;
-    letter-spacing:2.5px; text-transform:uppercase; color:rgba(255,255,255,0.3);
-    margin:32px 0 14px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06);
+    font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+    color:#8b949e; margin:28px 0 14px; padding-bottom:8px; border-bottom:1px solid #21262d;
 }
 .hero {
-    background:linear-gradient(135deg,rgba(59,130,246,0.1) 0%,rgba(99,102,241,0.07) 100%);
-    border:1px solid rgba(255,255,255,0.1); border-radius:20px;
-    padding:36px 44px; margin-bottom:28px; position:relative; overflow:hidden;
+    background:linear-gradient(135deg,#161b22 0%,#1c2128 100%);
+    border:1px solid #30363d; border-radius:12px;
+    padding:32px 40px; margin-bottom:24px;
 }
-.hero::after {
-    content:''; position:absolute; top:-60px; right:-60px;
-    width:260px; height:260px;
-    background:radial-gradient(circle,rgba(99,102,241,0.12) 0%,transparent 70%);
-    border-radius:50%;
-}
-.hero h1 { font-family:'Syne',sans-serif; font-size:2rem; font-weight:800; color:#fff; margin:0 0 8px; letter-spacing:-1px; }
-.hero p { color:rgba(255,255,255,0.45); font-size:13px; margin:0; font-weight:300; }
-.hero .accent { color:rgba(147,197,253,0.9); font-weight:500; }
+.hero h1 { font-size:1.9rem; font-weight:800; color:#f0f6fc; margin:0 0 8px; }
+.hero p { color:#8b949e; font-size:13px; margin:0; }
+.hero .accent { color:#58a6ff; font-weight:600; }
 .stTabs [data-baseweb="tab-list"] {
-    background:rgba(255,255,255,0.03); border-radius:10px; padding:4px; gap:4px;
-    border:1px solid rgba(255,255,255,0.06);
+    background:#161b22; border-radius:8px; padding:4px; gap:2px; border:1px solid #30363d;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius:8px !important; color:rgba(255,255,255,0.4) !important;
-    font-size:12px !important; font-weight:500 !important; padding:6px 16px !important;
+    border-radius:6px !important; color:#8b949e !important;
+    font-size:13px !important; font-weight:500 !important; padding:6px 16px !important;
 }
-.stTabs [aria-selected="true"] { background:rgba(255,255,255,0.08) !important; color:#fff !important; }
+.stTabs [aria-selected="true"] { background:#21262d !important; color:#f0f6fc !important; }
 .stDownloadButton button {
-    background:rgba(255,255,255,0.05) !important; border:1px solid rgba(255,255,255,0.1) !important;
-    color:#fff !important; border-radius:10px !important; font-size:12px !important;
+    background:#21262d !important; border:1px solid #30363d !important;
+    color:#f0f6fc !important; border-radius:8px !important; font-size:13px !important; font-weight:500 !important;
 }
+.stDownloadButton button:hover { background:#30363d !important; }
 ::-webkit-scrollbar { width:4px; height:4px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+::-webkit-scrollbar-track { background:#0d1117; }
+::-webkit-scrollbar-thumb { background:#30363d; border-radius:2px; }
+p, span, div, label { color:#f0f6fc; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,14 +80,12 @@ section[data-testid="stSidebar"] .stTextInput input {
 # ─────────────────────────────────────────────
 PL = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter", color="rgba(255,255,255,0.6)"),
-    xaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.06)",
-               tickfont=dict(size=11, color="rgba(255,255,255,0.45)")),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.06)",
-               tickfont=dict(size=11, color="rgba(255,255,255,0.45)")),
+    font=dict(family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color="#8b949e"),
+    xaxis=dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=11, color="#8b949e")),
+    yaxis=dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=11, color="#8b949e")),
     margin=dict(l=0, r=0, t=36, b=0),
-    legend=dict(font=dict(color="rgba(255,255,255,0.55)", size=11)),
-    title_font=dict(color="rgba(255,255,255,0.8)", size=13, family="Syne"),
+    legend=dict(font=dict(color="#c9d1d9", size=12)),
+    title_font=dict(color="#f0f6fc", size=13),
 )
 
 SLA_COLORS = {"≤ 1 Jam":"#34d399","1–3 Jam":"#60a5fa","3–6 Jam":"#fbbf24","6–24 Jam":"#fb923c","> 24 Jam":"#f87171","No Data":"#6b7280"}
@@ -115,6 +101,20 @@ def sla_category(h):
 
 def parse_dt(s):
     return pd.to_datetime(s, infer_datetime_format=True, errors="coerce")
+
+def fmt_sla(hours):
+    """Format jam desimal → '5 jam 32 menit'"""
+    if pd.isna(hours) or hours < 0:
+        return "-"
+    total_min = int(round(hours * 60))
+    h = total_min // 60
+    m = total_min % 60
+    if h == 0:
+        return f"{m} menit"
+    elif m == 0:
+        return f"{h} jam"
+    else:
+        return f"{h} jam {m} menit"
 
 # ─────────────────────────────────────────────
 # CONFIG
@@ -140,7 +140,7 @@ with st.sidebar:
     <hr style='border-color:rgba(255,255,255,0.07);margin:16px 0;'>
     """, unsafe_allow_html=True)
 
-    st.markdown("** Config File**")
+    st.markdown("**⚙️ Config File**")
     escore_path  = st.text_input("① Master APPID (ESCORE)", value=FILE_ESCORE)
     ps_path      = st.text_input("② One Me Pre Screening",  value=FILE_PS)
     slik_path    = st.text_input("③ SLIK",                  value=FILE_SLIK)
@@ -203,8 +203,13 @@ with st.spinner("Memuat data..."):
     df_ps_raw["CREATED_AT"] = parse_dt(df_ps_raw["CREATED_AT"])
     n_ps_raw = len(df_ps_raw)
 
-    # Filter: hanya APPID yang ada di master — TANPA dedup
-    df_ps = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+    # Filter 1: hanya APPID yang ada di master ESCORE
+    # Filter 2: status CHECK_PRESCREENING_REQUEST_APPROVE atau _DENIED
+    PS_STATUS = ["CHECK_PRESCREENING_REQUEST_APPROVE", "CHECK_PRESCREENING_REQUEST_DENIED"]
+    df_ps = df_ps_raw[
+        df_ps_raw["APPID"].isin(master_appids) &
+        df_ps_raw["STATUS"].isin(PS_STATUS)
+    ].copy()
     n_ps_filtered = len(df_ps)
 
     # ── STEP 3: SLIK ──
@@ -229,6 +234,7 @@ with st.spinner("Memuat data..."):
     df["SLA_Hours"]   = df["SLA_Hours"].round(2)
     df["SLA_Minutes"] = df["SLA_Minutes"].round(1)
     df["SLA_Category"] = df["SLA_Hours"].apply(sla_category)
+    df["SLA_Display"]  = df["SLA_Hours"].apply(fmt_sla)
 
     # Stats
     n_match    = int(df["_slik_found"].sum())
@@ -241,25 +247,25 @@ with st.spinner("Memuat data..."):
 match_pct = n_match / n_ps_filtered * 100 if n_ps_filtered else 0
 st.markdown(f"""
 <div style='display:flex;gap:8px;align-items:center;margin-bottom:24px;flex-wrap:wrap;'>
-    <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:10px;padding:10px 18px;font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.35);font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;'>① ESCORE</span>
-        <span style='font-weight:700;font-size:15px;'>{n_master:,}</span><span style='color:rgba(255,255,255,0.35);font-size:11px;'> APPID</span>
+    <div style='background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 18px;font-size:12px;'>
+        <span style='color:#8b949e;font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;font-weight:600;text-transform:uppercase;'>① ESCORE</span>
+        <span style='font-weight:700;font-size:15px;'>{n_master:,}</span><span style='color:#8b949e;font-size:11px;'> APPID</span>
     </div>
-    <span style='color:rgba(255,255,255,0.15);font-size:20px;'>→</span>
-    <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:10px;padding:10px 18px;font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.35);font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;'>② ONE ME</span>
-        <span style='font-weight:700;font-size:15px;'>{n_ps_filtered:,}</span><span style='color:rgba(255,255,255,0.35);font-size:11px;'> baris match</span>
+    <span style='color:#30363d;font-size:20px;'>→</span>
+    <div style='background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 18px;font-size:12px;'>
+        <span style='color:#8b949e;font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;font-weight:600;text-transform:uppercase;'>② ONE ME</span>
+        <span style='font-weight:700;font-size:15px;'>{n_ps_filtered:,}</span><span style='color:#8b949e;font-size:11px;'> baris match</span>
     </div>
-    <span style='color:rgba(255,255,255,0.15);font-size:20px;'>→</span>
-    <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:10px;padding:10px 18px;font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.35);font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;'>③ SLIK</span>
-        <span style='color:#34d399;font-weight:700;font-size:15px;'>{n_match:,}</span><span style='color:rgba(255,255,255,0.35);font-size:11px;'> match &nbsp;</span>
-        <span style='color:#f87171;font-weight:600;'>{n_nomatch:,}</span><span style='color:rgba(255,255,255,0.35);font-size:11px;'> tidak</span>
+    <span style='color:#30363d;font-size:20px;'>→</span>
+    <div style='background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 18px;font-size:12px;'>
+        <span style='color:#8b949e;font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;font-weight:600;text-transform:uppercase;'>③ SLIK</span>
+        <span style='color:#34d399;font-weight:700;font-size:15px;'>{n_match:,}</span><span style='color:#8b949e;font-size:11px;'> match &nbsp;</span>
+        <span style='color:#f87171;font-weight:600;'>{n_nomatch:,}</span><span style='color:#8b949e;font-size:11px;'> tidak</span>
     </div>
-    <span style='color:rgba(255,255,255,0.15);font-size:20px;'>→</span>
-    <div style='background:rgba(96,165,250,0.07);border:1px solid rgba(96,165,250,0.18);border-radius:10px;padding:10px 18px;font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.35);font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;'>④ SLA DIHITUNG</span>
-        <span style='color:#60a5fa;font-weight:700;font-size:15px;'>{n_match:,}</span><span style='color:rgba(255,255,255,0.35);font-size:11px;'> aplikasi</span>
+    <span style='color:#30363d;font-size:20px;'>→</span>
+    <div style='background:#1c2a3a;border:1px solid #1f6feb;border-radius:8px;padding:10px 18px;font-size:12px;'>
+        <span style='color:#8b949e;font-size:10px;display:block;margin-bottom:3px;letter-spacing:1px;font-weight:600;text-transform:uppercase;'>④ SLA DIHITUNG</span>
+        <span style='color:#60a5fa;font-weight:700;font-size:15px;'>{n_match:,}</span><span style='color:#8b949e;font-size:11px;'> aplikasi</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -278,10 +284,10 @@ pct_ok     = cnt_ok / n_match * 100 if n_match else 0
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 k1.metric("Total Aplikasi SLA", f"{n_match:,}")
-k2.metric("Avg SLA", f"{avg_sla:.1f} Jam")
-k3.metric("Median SLA", f"{median_sla:.1f} Jam")
-k4.metric("Min SLA", f"{min_sla:.1f} Jam")
-k5.metric("Max SLA", f"{max_sla:.1f} Jam")
+k2.metric("Avg SLA", fmt_sla(avg_sla))
+k3.metric("Median SLA", fmt_sla(median_sla))
+k4.metric("Min SLA", fmt_sla(min_sla))
+k5.metric("Max SLA", fmt_sla(max_sla))
 k6.metric("SLA ≤ 1 Jam", f"{cnt_ok:,}", f"{pct_ok:.1f}%")
 
 # ─────────────────────────────────────────────
@@ -368,11 +374,11 @@ st.markdown('<p class="section-title">Detail Data</p>', unsafe_allow_html=True)
 tab1, tab2, tab3, tab4 = st.tabs(["SLA per APPID", "Summary per Cabang", "Duplikat APPID", "Tidak Match SLIK"])
 
 with tab1:
-    show = ["APPID","USER_NAM","CREATED_AT","CABANG","PRODUK",TIMEDONE_COL,"SLA_Hours","SLA_Minutes","SLA_Category"]
+    show = ["APPID","USER_NAM","CREATED_AT","CABANG","PRODUK",TIMEDONE_COL,"SLA_Display","SLA_Hours","SLA_Category"]
     show = [c for c in show if c in df_sla.columns]
     st.dataframe(df_sla[show].sort_values("SLA_Hours", ascending=False), use_container_width=True, hide_index=True)
     csv1 = df_sla[show].to_csv(index=False).encode()
-    st.download_button(" Download SLA per APPID", csv1, "sla_per_appid.csv", "text/csv")
+    st.download_button("⬇️ Download SLA per APPID", csv1, "sla_per_appid.csv", "text/csv")
 
 with tab2:
     if "CABANG" in df_sla.columns:
@@ -385,13 +391,13 @@ with tab2:
         )
         st.dataframe(summ, use_container_width=True, hide_index=True)
         csv2 = summ.to_csv(index=False).encode()
-        st.download_button(" Download Summary Cabang", csv2, "summary_cabang.csv", "text/csv")
+        st.download_button("⬇️ Download Summary Cabang", csv2, "summary_cabang.csv", "text/csv")
 
 with tab3:
     # Tabel yang menunjukkan APPID dengan lebih dari 1 baris (duplikat)
     st.caption("APPID yang muncul lebih dari 1 kali di hasil join — ini yang akan hilang kalau pakai dedup")
     dup_appids = df_sla[df_sla.duplicated(subset=["APPID"], keep=False)].sort_values("APPID")
-    show_dup = ["APPID","USER_NAM","CREATED_AT","CABANG",TIMEDONE_COL,"SLA_Hours","SLA_Category"]
+    show_dup = ["APPID","USER_NAM","CREATED_AT","CABANG",TIMEDONE_COL,"SLA_Display","SLA_Hours","SLA_Category"]
     show_dup = [c for c in show_dup if c in dup_appids.columns]
     if len(dup_appids):
         st.info(f"{dup_appids['APPID'].nunique():,} APPID unik muncul lebih dari 1 baris ({len(dup_appids):,} baris total)")
@@ -401,8 +407,8 @@ with tab3:
         st.markdown("**Perbandingan hasil jika pakai dedup (ambil SLA terkecil per APPID):**")
         df_dedup = df_sla.sort_values("SLA_Hours").drop_duplicates(subset=["APPID"], keep="first")
         col_a, col_b = st.columns(2)
-        col_a.metric("Tanpa Dedup (sekarang)", f"{len(df_sla):,} baris", f"Avg SLA: {df_sla['SLA_Hours'].mean():.2f} jam")
-        col_b.metric("Dengan Dedup", f"{len(df_dedup):,} baris", f"Avg SLA: {df_dedup['SLA_Hours'].mean():.2f} jam")
+        col_a.metric("Tanpa Dedup (sekarang)", f"{len(df_sla):,} baris", f"Avg: {fmt_sla(df_sla['SLA_Hours'].mean())}")
+        col_b.metric("Dengan Dedup", f"{len(df_dedup):,} baris", f"Avg: {fmt_sla(df_dedup['SLA_Hours'].mean())}")
     else:
         st.success("Tidak ada duplikat APPID — semua APPID unik.")
 
@@ -413,4 +419,4 @@ with tab4:
     st.info(f"{len(no_match):,} baris tidak match ke SLIK")
     st.dataframe(no_match, use_container_width=True, hide_index=True)
     csv4 = no_match.to_csv(index=False).encode()
-    st.download_button(" Download Tidak Match", csv4, "tidak_match_slik.csv", "text/csv")
+    st.download_button("⬇️ Download Tidak Match", csv4, "tidak_match_slik.csv", "text/csv")
