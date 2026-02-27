@@ -447,51 +447,49 @@ if missing:
 # ── Load data ──
 with st.spinner("Memuat & memproses data..."):
 
-    # ════════════════════════════════════════
-    # STEP 1: Load master APPID dari ESCORE
-    # ════════════════════════════════════════
+    # ════════════════════════════════════════════════════════
+    # STEP 1 — Baca master APPID dari ESCORE (27k)
+    # ════════════════════════════════════════════════════════
     try:
         df_escore = pd.read_excel(escore_path, sheet_name=escore_sheet)
         df_escore.columns = df_escore.columns.str.strip()
         if escore_col not in df_escore.columns:
-            st.error(f"Kolom '{escore_col}' tidak ditemukan di file ESCORE. Kolom yang ada: {list(df_escore.columns)}")
+            st.error(f"Kolom '{escore_col}' tidak ada di ESCORE. Kolom tersedia: {list(df_escore.columns)}")
             st.stop()
         master_appids = set(
-            pd.to_numeric(df_escore[escore_col], errors="coerce")
-            .dropna().astype(int)
+            pd.to_numeric(df_escore[escore_col], errors="coerce").dropna().astype(int)
         )
         n_master = len(master_appids)
     except Exception as e:
-        st.error(f"Gagal baca ESCORE: {e}")
-        st.stop()
+        st.error(f"Gagal baca ESCORE: {e}"); st.stop()
 
-    # ════════════════════════════════════════
-    # STEP 2: Load One Me → filter pakai master APPID
-    # ════════════════════════════════════════
+    # ════════════════════════════════════════════════════════
+    # STEP 2 — Tabrakan master APPID ke ONE ME → dapat CREATED_AT
+    #          Hanya ambil baris ONE ME yang APPID-nya ada di master
+    # ════════════════════════════════════════════════════════
     try:
-        df_ps_raw = load_prescreening(ps_path, ps_sheet)
-        n_ps_raw  = len(df_ps_raw)
-        # Filter: hanya APPID yang ada di master ESCORE
-        df_ps = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
-        n_ps_filtered = len(df_ps)
+        df_ps_raw     = load_prescreening(ps_path, ps_sheet)
+        n_ps_raw      = len(df_ps_raw)
+        df_ps         = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+        n_ps_matched  = len(df_ps)                             # berapa APPID ketemu di ONE ME
+        n_ps_notfound = n_master - n_ps_matched                # berapa APPID master yg gak ada di ONE ME
     except Exception as e:
-        st.error(f"Gagal baca One Me: {e}")
-        st.stop()
+        st.error(f"Gagal baca One Me: {e}"); st.stop()
 
-    # ════════════════════════════════════════
-    # STEP 3: Load SLIK → join ke hasil Step 2
-    # ════════════════════════════════════════
+    # ════════════════════════════════════════════════════════
+    # STEP 3 — Tabrakan hasil Step 2 ke SLIK → dapat Timedone
+    #          Base = df_ps (ONE ME filtered), join ke SLIK
+    # ════════════════════════════════════════════════════════
     try:
         df_slik = load_slik(slik_path, slik_sheet)
     except Exception as e:
-        st.error(f"Gagal baca SLIK: {e}")
-        st.stop()
+        st.error(f"Gagal baca SLIK: {e}"); st.stop()
 
     if TIMEDONE_COL not in df_slik.columns:
-        st.error(f"Kolom '{TIMEDONE_COL}' tidak ditemukan di file SLIK.")
-        st.stop()
+        st.error(f"Kolom '{TIMEDONE_COL}' tidak ditemukan di SLIK."); st.stop()
 
-    # Dedup SLIK per APPID: ambil Timedone terkecil (paling awal)
+    # Dedup SLIK per APPID — kalau 1 APPID ada banyak baris, ambil Timedone terkecil
+    n_slik_raw   = len(df_slik)
     df_slik_dedup = (
         df_slik
         .dropna(subset=["APPID"])
@@ -499,39 +497,30 @@ with st.spinner("Memuat & memproses data..."):
         .drop_duplicates(subset=["APPID"], keep="first")
         .copy()
     )
-    n_slik_total = len(df_slik)
     n_slik_dedup = len(df_slik_dedup)
 
-    # Rename kolom bentrok sebelum join
-    df_slik_join = df_slik_dedup.rename(columns={
-        "CABANG": "CABANG_SLIK",
-        "Product": "Product_SLIK",
-    })
+    # Rename kolom yang sama di kedua file sebelum join
+    df_slik_j = df_slik_dedup.rename(columns={"CABANG": "CABANG_SLIK", "Product": "Product_SLIK"})
 
-    # LEFT JOIN: df_ps (base) ← df_slik_join via APPID
-    df = df_ps.merge(df_slik_join, on="APPID", how="left")
+    # LEFT JOIN: df_ps sebagai base, ambil kolom SLIK kalau APPID ketemu
+    df = df_ps.merge(df_slik_j, on="APPID", how="left")
 
-    # ════════════════════════════════════════
-    # STEP 4: Hitung SLA
-    # ════════════════════════════════════════
-    df["_join_status"] = df[TIMEDONE_COL].apply(
-        lambda x: "✅ Match" if pd.notna(x) else "❌ Tidak Match"
-    )
-    df["SLA_Hours"]   = (df[TIMEDONE_COL] - df["CREATED_AT"]).dt.total_seconds() / 3600
-    df["SLA_Minutes"] = df["SLA_Hours"] * 60
-    df["SLA_Hours"]   = df["SLA_Hours"].round(2)
-    df["SLA_Minutes"] = df["SLA_Minutes"].round(1)
+    # ════════════════════════════════════════════════════════
+    # STEP 4 — Hitung SLA per APPID
+    #          SLA = Timedone Hit SLIK − CREATED_AT
+    # ════════════════════════════════════════════════════════
+    df["_slik_found"]  = df[TIMEDONE_COL].notna()
+    df["SLA_Hours"]    = (df[TIMEDONE_COL] - df["CREATED_AT"]).dt.total_seconds() / 3600
+    df["SLA_Minutes"]  = df["SLA_Hours"] * 60
+    df["SLA_Hours"]    = df["SLA_Hours"].round(2)
+    df["SLA_Minutes"]  = df["SLA_Minutes"].round(1)
     df["SLA_Category"] = df["SLA_Hours"].apply(sla_category)
 
     timedone_col = TIMEDONE_COL
 
-    # Stats
-    n_matched   = int(df["_join_status"].eq("✅ Match").sum())
-    n_unmatched = int(df["_join_status"].eq("❌ Tidak Match").sum())
-    # APPID di SLIK yang tidak ada di df_ps (filtered)
-    ps_set   = set(df_ps["APPID"].dropna().astype(int))
-    slik_set = set(df_slik_dedup["APPID"].dropna().astype(int))
-    n_slik_only = len(slik_set - ps_set)
+    # ── Stats untuk diagnostics ──
+    n_slik_match   = int(df["_slik_found"].sum())       # ONE ME yg ketemu di SLIK
+    n_slik_nomatch = int((~df["_slik_found"]).sum())    # ONE ME yg TIDAK ketemu di SLIK
 
 # ─────────────────────────────────────────────
 # FILTERS
@@ -567,7 +556,7 @@ if len(date_range) == 2:
         (df_f["CREATED_AT"].dt.date <= date_range[1])
     ]
 
-df_valid = df_f[df_f["SLA_Hours"].notna() & (df_f["SLA_Hours"] >= 0) & (df_f["_join_status"] == "✅ Match")]
+df_valid = df_f[df_f["SLA_Hours"].notna() & (df_f["SLA_Hours"] >= 0) & (df_f["_slik_found"] == True)]
 
 # ─────────────────────────────────────────────
 # JOIN DIAGNOSTICS
@@ -575,48 +564,48 @@ df_valid = df_f[df_f["SLA_Hours"].notna() & (df_f["SLA_Hours"] >= 0) & (df_f["_j
 st.markdown('<p class="section-title">🔗 Hasil Tabrakan Data (APPID = APPID)</p>', unsafe_allow_html=True)
 
 # Flow summary banner
+match_pct_slik = n_slik_match / n_ps_matched * 100 if n_ps_matched else 0
 st.markdown(f"""
 <div style='display:flex; gap:8px; align-items:center; margin-bottom:20px; flex-wrap:wrap;'>
     <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 1 · ESCORE</span>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>① ESCORE</span>
         <span style='font-weight:600;'>{n_master:,} APPID</span>
     </div>
     <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
     <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 2 · ONE ME FILTER</span>
-        <span style='font-weight:600;'>{n_ps_filtered:,}</span>
-        <span style='color:rgba(255,255,255,0.35); font-size:11px;'> dari {n_ps_raw:,} baris</span>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>② ONE ME</span>
+        <span style='font-weight:600;'>{n_ps_matched:,} ketemu</span>
+        <span style='color:rgba(255,255,255,0.35); font-size:11px;'> / {n_ps_notfound:,} tidak ada</span>
     </div>
     <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
     <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 3 · JOIN SLIK</span>
-        <span style='color:#34d399; font-weight:600;'>{n_matched:,} match</span>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>③ SLIK</span>
+        <span style='color:#34d399; font-weight:600;'>{n_slik_match:,} match</span>
         <span style='color:rgba(255,255,255,0.35);'> / </span>
-        <span style='color:#f87171; font-weight:600;'>{n_unmatched:,} tidak</span>
+        <span style='color:#f87171; font-weight:600;'>{n_slik_nomatch:,} tidak</span>
     </div>
     <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
     <div style='background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:10px; padding:10px 16px; font-size:12px;'>
-        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 4 · SLA</span>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>④ SLA</span>
         <span style='color:#60a5fa; font-weight:600;'>CREATED_AT → Timedone SLIK</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 jc1, jc2, jc3, jc4, jc5 = st.columns(5)
-match_pct = n_matched / n_ps_filtered * 100 if n_ps_filtered else 0
 jc1.metric("Master APPID (ESCORE)", f"{n_master:,}")
-jc2.metric("One Me (filtered)", f"{n_ps_filtered:,}", f"dari {n_ps_raw:,} baris total")
-jc3.metric("SLIK (unique APPID)", f"{n_slik_dedup:,}", f"raw: {n_slik_total:,}")
-jc4.metric("✅ Match ke SLIK", f"{n_matched:,}", f"{match_pct:.1f}%")
-jc5.metric("❌ Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
+jc2.metric("Ketemu di ONE ME", f"{n_ps_matched:,}", f"{n_ps_notfound:,} tidak ada")
+jc3.metric("SLIK (unique APPID)", f"{n_slik_dedup:,}", f"raw: {n_slik_raw:,}")
+jc4.metric("✅ Match ke SLIK", f"{n_slik_match:,}", f"{match_pct_slik:.1f}%")
+jc5.metric("❌ Tidak Match SLIK", f"{n_slik_nomatch:,}", f"{100-match_pct_slik:.1f}%")
 
 # Visual bar match rate
 fig_match = go.Figure()
 fig_match.add_trace(go.Bar(
-    x=["Match ke SLIK", "Tidak Match"],
-    y=[n_matched, n_unmatched],
+    x=["Match ke SLIK", "Tidak Match SLIK"],
+    y=[n_slik_match, n_slik_nomatch],
     marker_color=["#34d399", "#f87171"],
-    text=[f"{n_matched:,} ({match_pct:.1f}%)", f"{n_unmatched:,} ({100-match_pct:.1f}%)"],
+    text=[f"{n_slik_match:,} ({match_pct_slik:.1f}%)", f"{n_slik_nomatch:,} ({100-match_pct_slik:.1f}%)"],
     textposition="outside",
     textfont=dict(size=12),
 ))
@@ -635,18 +624,18 @@ with jcol2:
     preview_cols = ["APPID"]
     if "USER_NAM" in df.columns: preview_cols.append("USER_NAM")
     if "CABANG" in df.columns: preview_cols.append("CABANG")
-    preview_cols += ["CREATED_AT", timedone_col, "SLA_Hours", "_join_status"]
+    preview_cols += ["CREATED_AT", timedone_col, "SLA_Hours", "_slik_found"]
     available_preview = [c for c in preview_cols if c in df.columns]
 
-    tab_match, tab_nomatch = st.tabs([f"✅ Matched ({n_matched:,})", f"❌ Tidak Match ({n_unmatched:,})"])
+    tab_match, tab_nomatch = st.tabs([f"✅ Match SLIK ({n_slik_match:,})", f"❌ Tidak Match ({n_slik_nomatch:,})"])
     with tab_match:
-        df_matched_preview = df[df["_join_status"] == "✅ Match"][available_preview].head(200)
+        df_matched_preview = df[df["_slik_found"] == True][available_preview].head(200)
         st.dataframe(df_matched_preview, use_container_width=True, hide_index=True, height=180)
     with tab_nomatch:
-        df_unmatched_preview = df[df["_join_status"] == "❌ Tidak Match"][available_preview].head(200)
+        df_unmatched_preview = df[df["_slik_found"] == False][available_preview].head(200)
         st.dataframe(df_unmatched_preview, use_container_width=True, hide_index=True, height=180)
-        if n_unmatched > 0:
-            csv_unmatch = df_unmatched_preview.to_csv(index=False).encode()
+        if n_slik_nomatch > 0:
+            csv_unmatch = df[df['_slik_found'] == False].to_csv(index=False).encode()
             st.download_button("⬇️ Download yang tidak match", csv_unmatch, "not_matched.csv", "text/csv")
 
 # ─────────────────────────────────────────────
@@ -655,14 +644,14 @@ with jcol2:
 st.markdown('<p class="section-title">📊 Overview SLA</p>', unsafe_allow_html=True)
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
-total_filtered  = len(df_f)
-matched_f       = int(df_f["_join_status"].eq("✅ Match").sum())
+total_filtered  = len(df_f)  # = n_ps_matched setelah filter
+matched_f       = int(df_f["_slik_found"].eq(True).sum())
 avg_sla         = df_valid["SLA_Hours"].mean() if len(df_valid) else 0
 median_sla      = df_valid["SLA_Hours"].median() if len(df_valid) else 0
 count_ok        = int((df_valid["SLA_Hours"] <= 1).sum())
 pct_ok          = (count_ok / len(df_valid) * 100) if len(df_valid) else 0
 
-k1.metric("One Me (filtered)", f"{total_filtered:,}")
+k1.metric("Total APPID (filtered)", f"{total_filtered:,}")
 k2.metric("Match ke SLIK", f"{matched_f:,}", f"{matched_f/total_filtered*100:.1f}%" if total_filtered else "-")
 k3.metric("Avg SLA", f"{avg_sla:.2f} Jam")
 k4.metric("Median SLA", f"{median_sla:.2f} Jam")
@@ -836,7 +825,7 @@ with tab3:
         "MID", "EngineScoring", "StatusMa", "Flag",
         TIMEDONE_COL, "Tanggal Hit SLIK",
         # Computed
-        "SLA_Hours", "SLA_Minutes", "SLA_Category", "_join_status"
+        "SLA_Hours", "SLA_Minutes", "SLA_Category", "_slik_found"
     ]
     available = [c for c in show_cols if c in df_f.columns]
     st.dataframe(df_f[available].head(1000), use_container_width=True, hide_index=True)
@@ -851,7 +840,7 @@ d1, d2 = st.columns(2)
 with d1:
     dl_cols = ["APPID","USER_NAM","CREATED_AT","CABANG","PRODUK","STATUS",
                "MID","EngineScoring","StatusMa",TIMEDONE_COL,
-               "SLA_Hours","SLA_Minutes","SLA_Category","_join_status"]
+               "SLA_Hours","SLA_Minutes","SLA_Category","_slik_found"]
     csv_detail = df_f[[c for c in dl_cols if c in df_f.columns]].to_csv(index=False).encode()
     st.download_button("⬇️ Download Detail SLA (.csv)", csv_detail, "detail_sla.csv", "text/csv")
 
