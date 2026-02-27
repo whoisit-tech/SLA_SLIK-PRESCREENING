@@ -11,6 +11,7 @@ import io
 # ─────────────────────────────────────────────
 st.set_page_config(
     page_title="SLA Dashboard – Pre Screening → SLIK",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -20,122 +21,233 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    background-color: #0a0e1a;
-    color: #e8eaf0;
+    font-family: 'Inter', sans-serif;
+    background-color: #050810;
+    color: #ffffff;
 }
 
-.stApp { background-color: #0a0e1a; }
+.stApp { background-color: #050810; }
+
+/* Animated gradient background */
+.stApp::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(59,130,246,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+}
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background: #0f1525;
-    border-right: 1px solid #1e2d4a;
+    background: #080c18 !important;
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+section[data-testid="stSidebar"] * {
+    color: #ffffff !important;
+}
+section[data-testid="stSidebar"] .stTextInput input {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+}
+section[data-testid="stSidebar"] label {
+    color: rgba(255,255,255,0.6) !important;
+    font-size: 12px !important;
 }
 
 /* Metric cards */
 [data-testid="metric-container"] {
-    background: linear-gradient(135deg, #111827 0%, #1a2540 100%);
-    border: 1px solid #1e3a5f;
-    border-radius: 12px;
-    padding: 20px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px 24px;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.2s;
+}
+[data-testid="metric-container"]:hover {
+    border-color: rgba(255,255,255,0.18);
 }
 [data-testid="metric-container"] label {
-    font-family: 'Space Mono', monospace !important;
+    font-family: 'Inter', sans-serif !important;
     font-size: 11px !important;
-    color: #64b5f6 !important;
-    letter-spacing: 1.5px;
+    font-weight: 500 !important;
+    color: rgba(255,255,255,0.45) !important;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
 }
 [data-testid="metric-container"] [data-testid="stMetricValue"] {
-    font-family: 'Space Mono', monospace !important;
-    font-size: 2rem !important;
-    color: #e8f4fd !important;
+    font-family: 'Syne', sans-serif !important;
+    font-size: 1.9rem !important;
+    color: #ffffff !important;
     font-weight: 700;
+    letter-spacing: -0.5px;
 }
 [data-testid="metric-container"] [data-testid="stMetricDelta"] {
-    font-size: 12px !important;
+    font-size: 11px !important;
+    color: rgba(255,255,255,0.5) !important;
 }
 
 /* Section headers */
 .section-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 3px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
     text-transform: uppercase;
-    color: #64b5f6;
-    margin: 32px 0 16px 0;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #1e3a5f;
+    color: rgba(255,255,255,0.35);
+    margin: 36px 0 16px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 /* Hero banner */
 .hero {
-    background: linear-gradient(135deg, #0d1b35 0%, #0a2048 50%, #0d1b35 100%);
-    border: 1px solid #1e3a5f;
-    border-radius: 16px;
-    padding: 32px 40px;
+    background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(99,102,241,0.08) 50%, rgba(139,92,246,0.06) 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 40px 48px;
     margin-bottom: 32px;
     position: relative;
     overflow: hidden;
 }
-.hero::before {
+.hero::after {
     content: '';
     position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 300px;
-    height: 300px;
-    background: radial-gradient(circle, rgba(100,181,246,0.08) 0%, transparent 70%);
+    top: -60px; right: -60px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
     border-radius: 50%;
 }
 .hero h1 {
-    font-family: 'Space Mono', monospace;
-    font-size: 1.8rem;
-    color: #e8f4fd;
-    margin: 0 0 8px 0;
-    letter-spacing: -0.5px;
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 10px 0;
+    letter-spacing: -1px;
+    line-height: 1.1;
 }
 .hero p {
-    color: #7fa8c8;
+    color: rgba(255,255,255,0.5);
     font-size: 14px;
     margin: 0;
     font-weight: 300;
+    letter-spacing: 0.2px;
+}
+.hero .accent {
+    color: rgba(147,197,253,0.9);
+    font-weight: 500;
 }
 
-/* Status badges */
-.badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'Space Mono', monospace;
+/* Info/warning/error boxes */
+.stAlert {
+    border-radius: 12px !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.03) !important;
+    color: #ffffff !important;
 }
-.badge-green { background: rgba(72,199,142,0.15); color: #48c78e; border: 1px solid rgba(72,199,142,0.3); }
-.badge-yellow { background: rgba(255,189,46,0.15); color: #ffbd2e; border: 1px solid rgba(255,189,46,0.3); }
-.badge-red { background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }
 
-/* Upload area */
-.upload-card {
-    background: #111827;
-    border: 1.5px dashed #1e3a5f;
-    border-radius: 12px;
-    padding: 24px;
-    text-align: center;
-    margin-bottom: 16px;
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important;
+    color: rgba(255,255,255,0.45) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 6px 16px !important;
+}
+.stTabs [aria-selected="true"] {
+    background: rgba(255,255,255,0.08) !important;
+    color: #ffffff !important;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 12px !important;
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 13px !important;
+}
+.streamlit-expanderContent {
+    background: rgba(255,255,255,0.02) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-top: none !important;
+}
+
+/* Buttons */
+.stDownloadButton button, .stButton button {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    color: #ffffff !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
+}
+.stDownloadButton button:hover, .stButton button:hover {
+    background: rgba(255,255,255,0.1) !important;
+    border-color: rgba(255,255,255,0.2) !important;
 }
 
 /* Dataframe */
-.stDataFrame { border-radius: 8px; overflow: hidden; }
+.stDataFrame {
+    border-radius: 12px !important;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+}
+[data-testid="stDataFrameResizable"] {
+    background: rgba(255,255,255,0.02) !important;
+}
+
+/* Multiselect */
+.stMultiSelect [data-baseweb="select"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 10px !important;
+}
+
+/* Text inputs */
+.stTextInput input, .stDateInput input {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #ffffff !important;
+    border-radius: 10px !important;
+}
+
+/* Upload area */
+.upload-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+}
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0a0e1a; }
-::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+/* Caption / small text */
+.stCaption, small { color: rgba(255,255,255,0.35) !important; }
+
+/* General text */
+p, span, div { color: #ffffff; }
+label { color: rgba(255,255,255,0.6) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -145,12 +257,24 @@ section[data-testid="stSidebar"] {
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="DM Sans", color="#c8d8e8"),
-    xaxis=dict(gridcolor="#1a2a3a", linecolor="#1e3a5f", tickfont=dict(size=11)),
-    yaxis=dict(gridcolor="#1a2a3a", linecolor="#1e3a5f", tickfont=dict(size=11)),
+    font=dict(family="Inter", color="rgba(255,255,255,0.75)"),
+    xaxis=dict(
+        gridcolor="rgba(255,255,255,0.05)",
+        linecolor="rgba(255,255,255,0.08)",
+        tickfont=dict(size=11, color="rgba(255,255,255,0.5)"),
+        title_font=dict(color="rgba(255,255,255,0.5)")
+    ),
+    yaxis=dict(
+        gridcolor="rgba(255,255,255,0.05)",
+        linecolor="rgba(255,255,255,0.08)",
+        tickfont=dict(size=11, color="rgba(255,255,255,0.5)"),
+        title_font=dict(color="rgba(255,255,255,0.5)")
+    ),
     margin=dict(l=0, r=0, t=40, b=0),
+    legend=dict(font=dict(color="rgba(255,255,255,0.6)", size=11)),
+    title_font=dict(color="rgba(255,255,255,0.85)", size=13, family="Syne"),
 )
-COLOR_SEQ = ["#64b5f6", "#4dd0e1", "#81c784", "#ffb74d", "#f48fb1", "#ce93d8", "#80cbc4", "#ffcc80"]
+COLOR_SEQ = ["#60a5fa", "#34d399", "#a78bfa", "#fbbf24", "#f472b6", "#38bdf8", "#4ade80", "#fb923c"]
 
 
 def parse_datetime(series):
@@ -232,12 +356,12 @@ def sla_category(hours):
 
 SLA_CAT_ORDER = ["≤ 1 Jam", "1–3 Jam", "3–6 Jam", "6–24 Jam", "> 24 Jam", "No Data"]
 SLA_CAT_COLOR = {
-    "≤ 1 Jam": "#48c78e",
-    "1–3 Jam": "#64b5f6",
-    "3–6 Jam": "#ffb74d",
-    "6–24 Jam": "#ff7043",
-    "> 24 Jam": "#ff5252",
-    "No Data": "#546e7a",
+    "≤ 1 Jam": "#34d399",
+    "1–3 Jam": "#60a5fa",
+    "3–6 Jam": "#fbbf24",
+    "6–24 Jam": "#fb923c",
+    "> 24 Jam": "#f87171",
+    "No Data": "#6b7280",
 }
 
 # ─────────────────────────────────────────────
@@ -250,18 +374,18 @@ FILE_APPID = "APPID ONE ME PRESCREEN.xlsx"  # master 27k APPID sebagai filter
 SHEET_PS   = "all raw"
 SHEET_SLIK = "Sheet1"
 SHEET_APPID = "Sheet1"
-APPID_COL_NAME = "APPID"                    # nama kolom APPID di file master
+APPID_COL_NAME = "APPID_ONEME_PRESCREEN"    # nama kolom APPID di file master
 
 with st.sidebar:
     st.markdown("""
     <div style='padding: 16px 0 8px;'>
-        <p style='font-family: Space Mono, monospace; font-size: 10px; letter-spacing: 3px; color: #64b5f6; text-transform: uppercase; margin:0;'>SLA MONITOR</p>
-        <p style='font-family: Space Mono, monospace; font-size: 18px; color: #e8f4fd; margin: 4px 0 0;'>Pre Screening<br/>→ SLIK</p>
+        <p style='font-family: Inter, sans-serif; font-size: 10px; letter-spacing: 2.5px; color: rgba(255,255,255,0.35); text-transform: uppercase; margin:0; font-weight:600;'>SLA MONITOR</p>
+        <p style='font-family: Syne, sans-serif; font-size: 20px; color: #ffffff; margin: 6px 0 0; font-weight:700; letter-spacing:-0.5px;'>Pre Screening<br/>→ SLIK</p>
     </div>
-    <hr style='border-color: #1e3a5f; margin: 16px 0;'>
+    <hr style='border-color: rgba(255,255,255,0.07); margin: 16px 0;'>
     """, unsafe_allow_html=True)
 
-    st.markdown("** Config File**")
+    st.markdown("**⚙️ Config File**")
     ps_path    = st.text_input("File One Me (CREATED_AT)", value=FILE_PS)
     slik_path  = st.text_input("File SLIK", value=FILE_SLIK)
     appid_path = st.text_input("File Master APPID", value=FILE_APPID)
@@ -271,11 +395,11 @@ with st.sidebar:
     ps_sheet       = st.text_input("Sheet One Me", value=SHEET_PS)
     slik_sheet     = st.text_input("Sheet SLIK", value=SHEET_SLIK)
     appid_sheet    = st.text_input("Sheet APPID List", value=SHEET_APPID)
-    appid_col_name = st.text_input("Kolom APPID di file list", value=APPID_COL_NAME)
+    appid_col_name = st.text_input("Kolom APPID di file master", value=APPID_COL_NAME)
 
     st.markdown("<hr style='border-color: #1e3a5f; margin: 16px 0;'>", unsafe_allow_html=True)
     st.markdown("""
-    <p style='font-family: Space Mono, monospace; font-size: 9px; color: #3a5a7a; letter-spacing: 1px;'>
+    <p style='font-family: Inter, sans-serif; font-size: 10px; color: rgba(255,255,255,0.2); letter-spacing: 0.5px; line-height: 1.8;'>
     JOIN: One Me APPID = SLIK APPID<br/>
     FILTER: APPID List (27k)<br/>
     SLA: CREATED_AT → Timedone Hit SLIK
@@ -287,8 +411,11 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 st.markdown("""
 <div class="hero">
-    <h1> SLA Dashboard</h1>
-    <p>Pre Screening → SLIK · Monitoring waktu proses per aplikasi & cabang</p>
+    <h1>SLA Dashboard</h1>
+    <p>
+        <span class="accent">Pre Screening</span> → <span class="accent">SLIK</span>
+        &nbsp;·&nbsp; Monitoring waktu proses aplikasi per cabang &amp; produk
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -298,8 +425,8 @@ st.markdown("""
 import os
 
 missing = []
-if not os.path.exists(ps_path):   missing.append(f" `{ps_path}`")
-if not os.path.exists(slik_path): missing.append(f" `{slik_path}`")
+if not os.path.exists(ps_path):   missing.append(f"❌ `{ps_path}`")
+if not os.path.exists(slik_path): missing.append(f"❌ `{slik_path}`")
 if missing:
     st.error("File berikut tidak ditemukan di repo:")
     for m in missing:
@@ -370,7 +497,7 @@ with st.spinner("Memuat & memproses data..."):
 
     # ── Join status flags ──
     df["_join_status"] = df[TIMEDONE_COL].apply(
-        lambda x: " Match" if pd.notna(x) else "❌ Tidak Match"
+        lambda x: "✅ Match" if pd.notna(x) else "❌ Tidak Match"
     )
 
     # ── SLA ──
@@ -385,8 +512,8 @@ with st.spinner("Memuat & memproses data..."):
     # ── Hitung stats join ──
     n_ps        = len(df_ps)
     n_slik      = len(df_slik_dedup)
-    n_matched   = df["_join_status"].eq(" Match").sum()
-    n_unmatched = df["_join_status"].eq(" Tidak Match").sum()
+    n_matched   = df["_join_status"].eq("✅ Match").sum()
+    n_unmatched = df["_join_status"].eq("❌ Tidak Match").sum()
     appid_set   = set(df_ps["APPID"].dropna().astype(int))
     slik_set    = set(df_slik_dedup["APPID"].dropna().astype(int))
     n_slik_only = len(slik_set - appid_set)
@@ -394,7 +521,7 @@ with st.spinner("Memuat & memproses data..."):
 # ─────────────────────────────────────────────
 # FILTERS
 # ─────────────────────────────────────────────
-with st.expander(" Filter Data", expanded=False):
+with st.expander("🔽 Filter Data", expanded=False):
     col1, col2, col3 = st.columns(3)
     with col1:
         cabang_list = sorted(df["CABANG"].dropna().unique().tolist()) if "CABANG" in df.columns else []
@@ -434,14 +561,14 @@ st.markdown('<p class="section-title">🔗 Hasil Tabrakan Data (APPID = APPID)</
 
 # Info filter APPID list
 if valid_appids is not None:
-    st.info(f" Filter aktif: {n_ps_filtered:,} APPID dari {n_ps_raw:,} total One Me ({n_ps_raw - n_ps_filtered:,} di-exclude)")
+    st.info(f"🔑 Filter aktif: {n_ps_filtered:,} APPID dari {n_ps_raw:,} total One Me ({n_ps_raw - n_ps_filtered:,} di-exclude)")
 
 jc1, jc2, jc3, jc4, jc5 = st.columns(5)
 match_pct = n_matched / n_ps * 100 if n_ps else 0
 jc1.metric("One Me (filtered)", f"{n_ps_filtered:,}", f"dari {n_ps_raw:,} total")
 jc2.metric("SLIK (unique APPID)", f"{n_slik:,}", "setelah dedup")
-jc3.metric(" Match", f"{n_matched:,}", f"{match_pct:.1f}%")
-jc4.metric(" Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
+jc3.metric("✅ Match", f"{n_matched:,}", f"{match_pct:.1f}%")
+jc4.metric("❌ Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
 jc5.metric("SLIK Only (orphan)", f"{n_slik_only:,}", "APPID ada di SLIK, tidak di One Me")
 
 # Visual bar match rate
@@ -449,7 +576,7 @@ fig_match = go.Figure()
 fig_match.add_trace(go.Bar(
     x=["Match", "Tidak Match"],
     y=[n_matched, n_unmatched],
-    marker_color=["#48c78e", "#ff5252"],
+    marker_color=["#34d399", "#f87171"],
     text=[f"{n_matched:,} ({match_pct:.1f}%)", f"{n_unmatched:,} ({100-match_pct:.1f}%)"],
     textposition="outside",
     textfont=dict(size=12),
@@ -472,25 +599,25 @@ with jcol2:
     preview_cols += ["CREATED_AT", timedone_col, "SLA_Hours", "_join_status"]
     available_preview = [c for c in preview_cols if c in df.columns]
 
-    tab_match, tab_nomatch = st.tabs([f" Matched ({n_matched:,})", f" Tidak Match ({n_unmatched:,})"])
+    tab_match, tab_nomatch = st.tabs([f"✅ Matched ({n_matched:,})", f"❌ Tidak Match ({n_unmatched:,})"])
     with tab_match:
-        df_matched_preview = df[df["_join_status"] == " Match"][available_preview].head(200)
+        df_matched_preview = df[df["_join_status"] == "✅ Match"][available_preview].head(200)
         st.dataframe(df_matched_preview, use_container_width=True, hide_index=True, height=180)
     with tab_nomatch:
-        df_unmatched_preview = df[df["_join_status"] == " Tidak Match"][available_preview].head(200)
+        df_unmatched_preview = df[df["_join_status"] == "❌ Tidak Match"][available_preview].head(200)
         st.dataframe(df_unmatched_preview, use_container_width=True, hide_index=True, height=180)
         if n_unmatched > 0:
             csv_unmatch = df_unmatched_preview.to_csv(index=False).encode()
-            st.download_button(" Download yang tidak match", csv_unmatch, "not_matched.csv", "text/csv")
+            st.download_button("⬇️ Download yang tidak match", csv_unmatch, "not_matched.csv", "text/csv")
 
 # ─────────────────────────────────────────────
 # KPI METRICS
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Overview SLA</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">📊 Overview SLA</p>', unsafe_allow_html=True)
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 total_apps   = len(df_f)
-matched_f    = df_f["_join_status"].eq(" Match").sum() if "_join_status" in df_f.columns else 0
+matched_f    = df_f["_join_status"].eq("✅ Match").sum() if "_join_status" in df_f.columns else 0
 avg_sla      = df_valid["SLA_Hours"].mean() if len(df_valid) else 0
 median_sla   = df_valid["SLA_Hours"].median() if len(df_valid) else 0
 count_ok     = (df_valid["SLA_Hours"] <= 1).sum()
@@ -506,7 +633,7 @@ k6.metric("SLA > 24 Jam", f"{(df_valid['SLA_Hours'] > 24).sum():,}")
 # ─────────────────────────────────────────────
 # CHARTS ROW 1
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Distribusi SLA</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">📈 Distribusi SLA</p>', unsafe_allow_html=True)
 c1, c2 = st.columns([3, 2])
 
 with c1:
@@ -515,7 +642,7 @@ with c1:
         df_valid[df_valid["SLA_Hours"] <= 48],
         x="SLA_Hours", nbins=50,
         title="Distribusi SLA (jam) — trimmed ≤ 48h",
-        color_discrete_sequence=["#64b5f6"],
+        color_discrete_sequence=["#60a5fa"],
         labels={"SLA_Hours": "SLA (Jam)"}
     )
     fig_hist.update_layout(**PLOTLY_LAYOUT, title_font=dict(size=13, color="#c8d8e8"))
@@ -545,7 +672,7 @@ with c2:
 # ─────────────────────────────────────────────
 # CHARTS ROW 2 – PER CABANG
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Analisis per Cabang</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">🏢 Analisis per Cabang</p>', unsafe_allow_html=True)
 
 if "CABANG" in df_valid.columns:
     cabang_summary = (
@@ -591,7 +718,7 @@ if "CABANG" in df_valid.columns:
 # ─────────────────────────────────────────────
 # CHARTS ROW 3 – TREND
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Trend Harian</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">📅 Trend Harian</p>', unsafe_allow_html=True)
 
 if df_valid["CREATED_AT"].notna().sum() > 0:
     df_valid2 = df_valid.copy()
@@ -605,13 +732,13 @@ if df_valid["CREATED_AT"].notna().sum() > 0:
 
     fig_line = make_subplots(specs=[[{"secondary_y": True}]])
     fig_line.add_trace(go.Scatter(x=daily["Date"], y=daily["Avg"], name="Avg SLA",
-                                  line=dict(color="#64b5f6", width=2.5), mode="lines+markers",
-                                  marker=dict(size=5)), secondary_y=False)
+                                  line=dict(color="#60a5fa", width=2.5), mode="lines+markers",
+                                  marker=dict(size=5, color="#60a5fa")), secondary_y=False)
     fig_line.add_trace(go.Scatter(x=daily["Date"], y=daily["Median"], name="Median SLA",
-                                  line=dict(color="#48c78e", width=2, dash="dot"), mode="lines"),
+                                  line=dict(color="#34d399", width=2, dash="dot"), mode="lines"),
                        secondary_y=False)
     fig_line.add_trace(go.Bar(x=daily["Date"], y=daily["Count"], name="Jumlah Aplikasi",
-                              marker_color="rgba(100,181,246,0.15)", marker_line_width=0),
+                              marker_color="rgba(96,165,250,0.12)", marker_line_width=0),
                        secondary_y=True)
     fig_line.update_layout(**PLOTLY_LAYOUT, title="Trend SLA Harian",
                            title_font=dict(size=13, color="#c8d8e8"),
@@ -623,7 +750,7 @@ if df_valid["CREATED_AT"].notna().sum() > 0:
 # ─────────────────────────────────────────────
 # SUMMARY TABLE
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Summary Tabel</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">📋 Summary Tabel</p>', unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["Per Cabang", "Per Produk", "Raw Data"])
 
@@ -679,7 +806,7 @@ with tab3:
 # ─────────────────────────────────────────────
 # DOWNLOAD
 # ─────────────────────────────────────────────
-st.markdown('<p class="section-title"> Export</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">⬇️ Export</p>', unsafe_allow_html=True)
 
 d1, d2 = st.columns(2)
 with d1:
@@ -687,9 +814,9 @@ with d1:
                "MID","EngineScoring","StatusMa",TIMEDONE_COL,
                "SLA_Hours","SLA_Minutes","SLA_Category","_join_status"]
     csv_detail = df_f[[c for c in dl_cols if c in df_f.columns]].to_csv(index=False).encode()
-    st.download_button(" Download Detail SLA (.csv)", csv_detail, "detail_sla.csv", "text/csv")
+    st.download_button("⬇️ Download Detail SLA (.csv)", csv_detail, "detail_sla.csv", "text/csv")
 
 with d2:
     if "CABANG" in df_valid.columns:
         csv_summary = full_cabang.to_csv(index=False).encode()
-        st.download_button(" Download Summary per Cabang (.csv)", csv_summary, "summary_cabang.csv", "text/csv")
+        st.download_button("⬇️ Download Summary per Cabang (.csv)", csv_summary, "summary_cabang.csv", "text/csv")
