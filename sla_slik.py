@@ -368,13 +368,15 @@ SLA_CAT_COLOR = {
 # SIDEBAR
 # ─────────────────────────────────────────────
 # ── CONFIG PATH FILE ──
-FILE_PS    = "ONE ME PRE SCREENING.xlsx"    # kolom CREATED_AT, CABANG, dll
-FILE_SLIK  = "SLIK.xlsx"                    # kolom Timedone Hit SLIK, dll
-FILE_APPID = "APPID ONE ME PRESCREEN.xlsx"  # master 27k APPID sebagai filter
-SHEET_PS   = "all raw"
-SHEET_SLIK = "Sheet1"
-SHEET_APPID = "Sheet1"
-APPID_COL_NAME = "APPID_ONEME_PRESCREEN"    # nama kolom APPID di file master
+# ── Nama file (harus sama persis dengan file di repo) ──
+FILE_ESCORE = "APPID ONE ME PRESCREEN ESCORE.xlsx"  # Step 1: master APPID (27k)
+FILE_PS     = "ONE ME PRE SCREENING.xlsx"            # Step 2: data utama (CREATED_AT dll)
+FILE_SLIK   = "SLIK.xlsx"                            # Step 3: data SLIK (Timedone)
+
+SHEET_ESCORE   = "Sheet1"
+SHEET_PS       = "all raw"
+SHEET_SLIK     = "Sheet1"
+ESCORE_COL     = "APPID_ONEME_PRESCREEN"   # kolom APPID di file ESCORE
 
 with st.sidebar:
     st.markdown("""
@@ -386,16 +388,16 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     st.markdown("**⚙️ Config File**")
-    ps_path    = st.text_input("File One Me (CREATED_AT)", value=FILE_PS)
-    slik_path  = st.text_input("File SLIK", value=FILE_SLIK)
-    appid_path = st.text_input("File Master APPID", value=FILE_APPID)
+    escore_path = st.text_input("① Master APPID (ESCORE)", value=FILE_ESCORE)
+    ps_path     = st.text_input("② One Me Pre Screening", value=FILE_PS)
+    slik_path   = st.text_input("③ SLIK", value=FILE_SLIK)
 
-    st.markdown("<hr style='border-color: #1e3a5f; margin: 16px 0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color: rgba(255,255,255,0.07); margin: 16px 0;'>", unsafe_allow_html=True)
 
+    escore_sheet   = st.text_input("Sheet ESCORE", value=SHEET_ESCORE)
     ps_sheet       = st.text_input("Sheet One Me", value=SHEET_PS)
     slik_sheet     = st.text_input("Sheet SLIK", value=SHEET_SLIK)
-    appid_sheet    = st.text_input("Sheet APPID List", value=SHEET_APPID)
-    appid_col_name = st.text_input("Kolom APPID di file master", value=APPID_COL_NAME)
+    escore_col     = st.text_input("Kolom APPID di ESCORE", value=ESCORE_COL)
 
     st.markdown("<hr style='border-color: #1e3a5f; margin: 16px 0;'>", unsafe_allow_html=True)
     st.markdown("""
@@ -425,50 +427,60 @@ st.markdown("""
 import os
 
 missing = []
-if not os.path.exists(ps_path):   missing.append(f"❌ `{ps_path}`")
-if not os.path.exists(slik_path): missing.append(f"❌ `{slik_path}`")
+if not os.path.exists(escore_path): missing.append(f"❌ `{escore_path}` — Master APPID ESCORE")
+if not os.path.exists(ps_path):     missing.append(f"❌ `{ps_path}` — One Me Pre Screening")
+if not os.path.exists(slik_path):   missing.append(f"❌ `{slik_path}` — SLIK")
 if missing:
     st.error("File berikut tidak ditemukan di repo:")
     for m in missing:
         st.markdown(m)
     st.markdown("""
-    **Pastikan ketiga file ini ada di root repo GitHub:**
+    **Pastikan 3 file ini ada di root repo GitHub (nama harus sama persis):**
     ```
-    ONE ME PRE SCREENING.xlsx
-    SLIK.xlsx
-    APPID_LIST.xlsx        ← opsional, kalau tidak ada semua APPID dipakai
+    APPID ONE ME PRESCREEN ESCORE.xlsx   ← master APPID (27k)
+    ONE ME PRE SCREENING.xlsx            ← data utama
+    SLIK.xlsx                            ← data SLIK
     ```
-    Lalu ubah nama file di sidebar kalau berbeda.
     """)
     st.stop()
 
 # ── Load data ──
 with st.spinner("Memuat & memproses data..."):
+
+    # ════════════════════════════════════════
+    # STEP 1: Load master APPID dari ESCORE
+    # ════════════════════════════════════════
     try:
-        df_ps = load_prescreening(ps_path, ps_sheet)
+        df_escore = pd.read_excel(escore_path, sheet_name=escore_sheet)
+        df_escore.columns = df_escore.columns.str.strip()
+        if escore_col not in df_escore.columns:
+            st.error(f"Kolom '{escore_col}' tidak ditemukan di file ESCORE. Kolom yang ada: {list(df_escore.columns)}")
+            st.stop()
+        master_appids = set(
+            pd.to_numeric(df_escore[escore_col], errors="coerce")
+            .dropna().astype(int)
+        )
+        n_master = len(master_appids)
+    except Exception as e:
+        st.error(f"Gagal baca ESCORE: {e}")
+        st.stop()
+
+    # ════════════════════════════════════════
+    # STEP 2: Load One Me → filter pakai master APPID
+    # ════════════════════════════════════════
+    try:
+        df_ps_raw = load_prescreening(ps_path, ps_sheet)
+        n_ps_raw  = len(df_ps_raw)
+        # Filter: hanya APPID yang ada di master ESCORE
+        df_ps = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+        n_ps_filtered = len(df_ps)
     except Exception as e:
         st.error(f"Gagal baca One Me: {e}")
         st.stop()
 
-    # ── Filter pakai APPID List (27k) jika file tersedia ──
-    n_ps_raw = len(df_ps)
-    valid_appids = None
-    if os.path.exists(appid_path):
-        try:
-            if appid_path.endswith(".csv"):
-                df_appid = pd.read_csv(appid_path)
-            else:
-                df_appid = pd.read_excel(appid_path, sheet_name=appid_sheet)
-            df_appid.columns = df_appid.columns.str.strip()
-            if appid_col_name in df_appid.columns:
-                valid_appids = set(pd.to_numeric(df_appid[appid_col_name], errors="coerce").dropna().astype(int))
-                df_ps = df_ps[df_ps["APPID"].isin(valid_appids)]
-            else:
-                st.warning(f"Kolom '{appid_col_name}' tidak ditemukan di file APPID list — semua APPID dipakai.")
-        except Exception as e:
-            st.warning(f"File APPID list gagal dibaca: {e} — semua APPID dipakai.")
-    n_ps_filtered = len(df_ps)
-
+    # ════════════════════════════════════════
+    # STEP 3: Load SLIK → join ke hasil Step 2
+    # ════════════════════════════════════════
     try:
         df_slik = load_slik(slik_path, slik_sheet)
     except Exception as e:
@@ -479,44 +491,47 @@ with st.spinner("Memuat & memproses data..."):
         st.error(f"Kolom '{TIMEDONE_COL}' tidak ditemukan di file SLIK.")
         st.stop()
 
-    # ── Dedup SLIK per APPID: ambil Timedone terkecil ──
+    # Dedup SLIK per APPID: ambil Timedone terkecil (paling awal)
     df_slik_dedup = (
         df_slik
         .dropna(subset=["APPID"])
         .sort_values(TIMEDONE_COL)
         .drop_duplicates(subset=["APPID"], keep="first")
+        .copy()
     )
+    n_slik_total = len(df_slik)
+    n_slik_dedup = len(df_slik_dedup)
 
-    # ── LEFT JOIN: One Me (master) ← SLIK via APPID = APPID ──
-    # Rename kolom yang bentrok (CABANG ada di kedua file)
+    # Rename kolom bentrok sebelum join
     df_slik_join = df_slik_dedup.rename(columns={
         "CABANG": "CABANG_SLIK",
         "Product": "Product_SLIK",
     })
+
+    # LEFT JOIN: df_ps (base) ← df_slik_join via APPID
     df = df_ps.merge(df_slik_join, on="APPID", how="left")
 
-    # ── Join status flags ──
+    # ════════════════════════════════════════
+    # STEP 4: Hitung SLA
+    # ════════════════════════════════════════
     df["_join_status"] = df[TIMEDONE_COL].apply(
         lambda x: "✅ Match" if pd.notna(x) else "❌ Tidak Match"
     )
-
-    # ── SLA ──
-    df["SLA_Hours"]    = (df[TIMEDONE_COL] - df["CREATED_AT"]).dt.total_seconds() / 3600
-    df["SLA_Minutes"]  = df["SLA_Hours"] * 60
-    df["SLA_Hours"]    = df["SLA_Hours"].round(2)
-    df["SLA_Minutes"]  = df["SLA_Minutes"].round(1)
+    df["SLA_Hours"]   = (df[TIMEDONE_COL] - df["CREATED_AT"]).dt.total_seconds() / 3600
+    df["SLA_Minutes"] = df["SLA_Hours"] * 60
+    df["SLA_Hours"]   = df["SLA_Hours"].round(2)
+    df["SLA_Minutes"] = df["SLA_Minutes"].round(1)
     df["SLA_Category"] = df["SLA_Hours"].apply(sla_category)
 
-    timedone_col = TIMEDONE_COL  # alias untuk section selanjutnya
+    timedone_col = TIMEDONE_COL
 
-    # ── Hitung stats join ──
-    n_ps        = len(df_ps)
-    n_slik      = len(df_slik_dedup)
-    n_matched   = df["_join_status"].eq("✅ Match").sum()
-    n_unmatched = df["_join_status"].eq("❌ Tidak Match").sum()
-    appid_set   = set(df_ps["APPID"].dropna().astype(int))
-    slik_set    = set(df_slik_dedup["APPID"].dropna().astype(int))
-    n_slik_only = len(slik_set - appid_set)
+    # Stats
+    n_matched   = int(df["_join_status"].eq("✅ Match").sum())
+    n_unmatched = int(df["_join_status"].eq("❌ Tidak Match").sum())
+    # APPID di SLIK yang tidak ada di df_ps (filtered)
+    ps_set   = set(df_ps["APPID"].dropna().astype(int))
+    slik_set = set(df_slik_dedup["APPID"].dropna().astype(int))
+    n_slik_only = len(slik_set - ps_set)
 
 # ─────────────────────────────────────────────
 # FILTERS
@@ -559,22 +574,46 @@ df_valid = df_f[df_f["SLA_Hours"].notna() & (df_f["SLA_Hours"] >= 0) & (df_f["_j
 # ─────────────────────────────────────────────
 st.markdown('<p class="section-title">🔗 Hasil Tabrakan Data (APPID = APPID)</p>', unsafe_allow_html=True)
 
-# Info filter APPID list
-if valid_appids is not None:
-    st.info(f"🔑 Filter aktif: {n_ps_filtered:,} APPID dari {n_ps_raw:,} total One Me ({n_ps_raw - n_ps_filtered:,} di-exclude)")
+# Flow summary banner
+st.markdown(f"""
+<div style='display:flex; gap:8px; align-items:center; margin-bottom:20px; flex-wrap:wrap;'>
+    <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 1 · ESCORE</span>
+        <span style='font-weight:600;'>{n_master:,} APPID</span>
+    </div>
+    <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
+    <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 2 · ONE ME FILTER</span>
+        <span style='font-weight:600;'>{n_ps_filtered:,}</span>
+        <span style='color:rgba(255,255,255,0.35); font-size:11px;'> dari {n_ps_raw:,} baris</span>
+    </div>
+    <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
+    <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 3 · JOIN SLIK</span>
+        <span style='color:#34d399; font-weight:600;'>{n_matched:,} match</span>
+        <span style='color:rgba(255,255,255,0.35);'> / </span>
+        <span style='color:#f87171; font-weight:600;'>{n_unmatched:,} tidak</span>
+    </div>
+    <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
+    <div style='background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:10px; padding:10px 16px; font-size:12px;'>
+        <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>STEP 4 · SLA</span>
+        <span style='color:#60a5fa; font-weight:600;'>CREATED_AT → Timedone SLIK</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 jc1, jc2, jc3, jc4, jc5 = st.columns(5)
-match_pct = n_matched / n_ps * 100 if n_ps else 0
-jc1.metric("One Me (filtered)", f"{n_ps_filtered:,}", f"dari {n_ps_raw:,} total")
-jc2.metric("SLIK (unique APPID)", f"{n_slik:,}", "setelah dedup")
-jc3.metric("✅ Match", f"{n_matched:,}", f"{match_pct:.1f}%")
-jc4.metric("❌ Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
-jc5.metric("SLIK Only (orphan)", f"{n_slik_only:,}", "APPID ada di SLIK, tidak di One Me")
+match_pct = n_matched / n_ps_filtered * 100 if n_ps_filtered else 0
+jc1.metric("Master APPID (ESCORE)", f"{n_master:,}")
+jc2.metric("One Me (filtered)", f"{n_ps_filtered:,}", f"dari {n_ps_raw:,} baris total")
+jc3.metric("SLIK (unique APPID)", f"{n_slik_dedup:,}", f"raw: {n_slik_total:,}")
+jc4.metric("✅ Match ke SLIK", f"{n_matched:,}", f"{match_pct:.1f}%")
+jc5.metric("❌ Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
 
 # Visual bar match rate
 fig_match = go.Figure()
 fig_match.add_trace(go.Bar(
-    x=["Match", "Tidak Match"],
+    x=["Match ke SLIK", "Tidak Match"],
     y=[n_matched, n_unmatched],
     marker_color=["#34d399", "#f87171"],
     text=[f"{n_matched:,} ({match_pct:.1f}%)", f"{n_unmatched:,} ({100-match_pct:.1f}%)"],
@@ -616,19 +655,19 @@ with jcol2:
 st.markdown('<p class="section-title">📊 Overview SLA</p>', unsafe_allow_html=True)
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
-total_apps   = len(df_f)
-matched_f    = df_f["_join_status"].eq("✅ Match").sum() if "_join_status" in df_f.columns else 0
-avg_sla      = df_valid["SLA_Hours"].mean() if len(df_valid) else 0
-median_sla   = df_valid["SLA_Hours"].median() if len(df_valid) else 0
-count_ok     = (df_valid["SLA_Hours"] <= 1).sum()
-pct_ok       = (count_ok / len(df_valid) * 100) if len(df_valid) else 0
+total_filtered  = len(df_f)
+matched_f       = int(df_f["_join_status"].eq("✅ Match").sum())
+avg_sla         = df_valid["SLA_Hours"].mean() if len(df_valid) else 0
+median_sla      = df_valid["SLA_Hours"].median() if len(df_valid) else 0
+count_ok        = int((df_valid["SLA_Hours"] <= 1).sum())
+pct_ok          = (count_ok / len(df_valid) * 100) if len(df_valid) else 0
 
-k1.metric("Total Aplikasi", f"{total_apps:,}")
-k2.metric("Match ke SLIK", f"{matched_f:,}", f"{matched_f/total_apps*100:.1f}% matched" if total_apps else "-")
+k1.metric("One Me (filtered)", f"{total_filtered:,}")
+k2.metric("Match ke SLIK", f"{matched_f:,}", f"{matched_f/total_filtered*100:.1f}%" if total_filtered else "-")
 k3.metric("Avg SLA", f"{avg_sla:.2f} Jam")
 k4.metric("Median SLA", f"{median_sla:.2f} Jam")
 k5.metric("SLA ≤ 1 Jam", f"{count_ok:,}", f"{pct_ok:.1f}%")
-k6.metric("SLA > 24 Jam", f"{(df_valid['SLA_Hours'] > 24).sum():,}")
+k6.metric("SLA > 24 Jam", f"{int((df_valid['SLA_Hours'] > 24).sum()):,}")
 
 # ─────────────────────────────────────────────
 # CHARTS ROW 1
