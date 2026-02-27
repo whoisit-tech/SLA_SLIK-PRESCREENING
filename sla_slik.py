@@ -189,6 +189,23 @@ if missing:
 with st.spinner("Memuat data..."):
 
     # ── STEP 1: Master APPID dari ESCORE ──
+    # Cek semua sheet yang tersedia
+    import openpyxl
+    def get_sheets(path):
+        try:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            sheets = wb.sheetnames; wb.close(); return sheets
+        except: return []
+
+    escore_sheets = get_sheets(escore_path)
+    ps_sheets     = get_sheets(ps_path)
+    slik_sheets   = get_sheets(slik_path)
+
+    with st.expander("🔍 Debug Info — klik untuk lihat sheets tersedia", expanded=False):
+        st.write(f"**ESCORE sheets:** {escore_sheets}")
+        st.write(f"**ONE ME sheets:** {ps_sheets}")
+        st.write(f"**SLIK sheets:** {slik_sheets}")
+
     df_escore = pd.read_excel(escore_path, sheet_name=escore_sheet)
     df_escore.columns = df_escore.columns.str.strip()
     if escore_col not in df_escore.columns:
@@ -203,21 +220,23 @@ with st.spinner("Memuat data..."):
     df_ps_raw["CREATED_AT"] = parse_dt(df_ps_raw["CREATED_AT"])
     n_ps_raw = len(df_ps_raw)
 
-    # Filter 1: hanya APPID yang ada di master ESCORE
-    df_ps_escore = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+    # Step count detail
+    n_ps_raw_total  = len(df_ps_raw)                                          # total baris ONE ME
 
-    # Filter 2: status mengandung APPROVE atau DENIED (case-insensitive, trim spasi)
+    # Filter 1: hanya APPID yang ada di master ESCORE
+    df_ps_escore    = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+    n_ps_escore     = len(df_ps_escore)                                       # ketemu di ONE ME
+
+    # Filter 2: status APPROVED atau DENIED
     if "STATUS" in df_ps_escore.columns:
         status_clean = df_ps_escore["STATUS"].astype(str).str.strip().str.upper()
-        mask_status = status_clean.str.contains("APPROVED|DENIED", na=False)
-        df_ps = df_ps_escore[mask_status].copy()
+        mask_status  = status_clean.str.contains("APPROVED|DENIED", na=False)
+        df_ps        = df_ps_escore[mask_status].copy()
     else:
         df_ps = df_ps_escore.copy()
 
-    n_ps_filtered = len(df_ps)
-
-    # Debug: tampilkan unique STATUS yang ditemukan
-    _all_status = df_ps_escore["STATUS"].dropna().unique().tolist() if "STATUS" in df_ps_escore.columns else []
+    n_ps_filtered   = len(df_ps)                                              # setelah filter status
+    _all_status     = df_ps_escore["STATUS"].dropna().unique().tolist() if "STATUS" in df_ps_escore.columns else []
 
     # ── STEP 3: SLIK ──
     df_slik = pd.read_excel(slik_path, sheet_name=slik_sheet)
@@ -249,10 +268,26 @@ with st.spinner("Memuat data..."):
     df_sla     = df[df["_slik_found"]].copy()   # 2,765 baris yang punya SLA
 
 # ─────────────────────────────────────────────
-# DEBUG: tampilkan status unik kalau match = 0
+# DEBUG COUNTS — tiap step
 # ─────────────────────────────────────────────
+with st.expander("🔍 Detail hitungan tiap step", expanded=True):
+    st.markdown(f"""
+| Step | Keterangan | Jumlah |
+|------|-----------|--------|
+| ESCORE | Total master APPID | **{n_master:,}** |
+| ONE ME raw | Total baris file ONE ME | **{n_ps_raw_total:,}** |
+| ONE ME × ESCORE | APPID ketemu di ONE ME (semua status) | **{n_ps_escore:,}** |
+| ONE ME filtered | Setelah filter STATUS APPROVED/DENIED | **{n_ps_filtered:,}** |
+| SLIK raw | Total baris file SLIK | **{n_slik_raw:,}** |
+| SLIK × ONE ME | Match ke SLIK (SLA dihitung) | **{n_match:,}** |
+| Tidak match SLIK | Ada di ONE ME tapi tidak di SLIK | **{n_nomatch:,}** |
+    """)
+    if _all_status:
+        st.markdown("**Semua nilai STATUS di ONE ME (setelah filter ESCORE):**")
+        st.write(_all_status)
+
 if n_ps_filtered == 0 and _all_status:
-    st.warning(f"⚠️ Tidak ada baris yang lolos filter STATUS APPROVE/DENIED. Nilai STATUS yang ditemukan di file: `{'`, `'.join([str(s) for s in _all_status[:20]])}`")
+    st.warning(f"⚠️ Filter STATUS APPROVED/DENIED tidak ketemu. Nilai STATUS: `{'`, `'.join([str(s) for s in _all_status[:20]])}`")
 
 # ─────────────────────────────────────────────
 # FLOW SUMMARY
