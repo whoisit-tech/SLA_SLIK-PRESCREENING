@@ -465,14 +465,24 @@ with st.spinner("Memuat & memproses data..."):
 
     # ════════════════════════════════════════════════════════
     # STEP 2 — Tabrakan master APPID ke ONE ME → dapat CREATED_AT
-    #          Hanya ambil baris ONE ME yang APPID-nya ada di master
+    #          Filter hanya APPID yang ada di master ESCORE
+    #          Dedup per APPID: ambil CREATED_AT paling awal
     # ════════════════════════════════════════════════════════
     try:
-        df_ps_raw     = load_prescreening(ps_path, ps_sheet)
-        n_ps_raw      = len(df_ps_raw)
-        df_ps         = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
-        n_ps_matched  = len(df_ps)                             # berapa APPID ketemu di ONE ME
-        n_ps_notfound = n_master - n_ps_matched                # berapa APPID master yg gak ada di ONE ME
+        df_ps_raw    = load_prescreening(ps_path, ps_sheet)
+        n_ps_raw     = len(df_ps_raw)
+        # Filter: hanya APPID yang ada di master
+        df_ps_filter = df_ps_raw[df_ps_raw["APPID"].isin(master_appids)].copy()
+        n_ps_rows    = len(df_ps_filter)   # jumlah baris (bisa duplikat APPID)
+        # Dedup per APPID — ambil CREATED_AT terkecil (paling awal)
+        df_ps = (
+            df_ps_filter
+            .sort_values("CREATED_AT")
+            .drop_duplicates(subset=["APPID"], keep="first")
+            .copy()
+        )
+        n_ps_matched  = len(df_ps)                  # unique APPID yang ketemu di ONE ME
+        n_ps_notfound = n_master - n_ps_matched      # APPID master yang tidak ada di ONE ME
     except Exception as e:
         st.error(f"Gagal baca One Me: {e}"); st.stop()
 
@@ -574,8 +584,8 @@ st.markdown(f"""
     <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
     <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
         <span style='color:rgba(255,255,255,0.4); font-size:10px; display:block; margin-bottom:2px;'>② ONE ME</span>
-        <span style='font-weight:600;'>{n_ps_matched:,} ketemu</span>
-        <span style='color:rgba(255,255,255,0.35); font-size:11px;'> / {n_ps_notfound:,} tidak ada</span>
+        <span style='font-weight:600;'>{n_ps_matched:,} unique APPID</span>
+        <span style='color:rgba(255,255,255,0.35); font-size:11px;'> dari {n_ps_rows:,} baris</span>
     </div>
     <span style='color:rgba(255,255,255,0.2); font-size:18px;'>→</span>
     <div style='background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 16px; font-size:12px;'>
@@ -594,7 +604,7 @@ st.markdown(f"""
 
 jc1, jc2, jc3, jc4, jc5 = st.columns(5)
 jc1.metric("Master APPID (ESCORE)", f"{n_master:,}")
-jc2.metric("Ketemu di ONE ME", f"{n_ps_matched:,}", f"{n_ps_notfound:,} tidak ada")
+jc2.metric("Ketemu di ONE ME", f"{n_ps_matched:,}", f"dari {n_ps_rows:,} baris raw")
 jc3.metric("SLIK (unique APPID)", f"{n_slik_dedup:,}", f"raw: {n_slik_raw:,}")
 jc4.metric("✅ Match ke SLIK", f"{n_slik_match:,}", f"{match_pct_slik:.1f}%")
 jc5.metric("❌ Tidak Match SLIK", f"{n_slik_nomatch:,}", f"{100-match_pct_slik:.1f}%")
