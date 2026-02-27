@@ -1,0 +1,695 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import io
+
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="SLA Dashboard – Pre Screening → SLIK",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────────
+# CUSTOM CSS
+# ─────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #0a0e1a;
+    color: #e8eaf0;
+}
+
+.stApp { background-color: #0a0e1a; }
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #0f1525;
+    border-right: 1px solid #1e2d4a;
+}
+
+/* Metric cards */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #111827 0%, #1a2540 100%);
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    padding: 20px;
+}
+[data-testid="metric-container"] label {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 11px !important;
+    color: #64b5f6 !important;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 2rem !important;
+    color: #e8f4fd !important;
+    font-weight: 700;
+}
+[data-testid="metric-container"] [data-testid="stMetricDelta"] {
+    font-size: 12px !important;
+}
+
+/* Section headers */
+.section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #64b5f6;
+    margin: 32px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e3a5f;
+}
+
+/* Hero banner */
+.hero {
+    background: linear-gradient(135deg, #0d1b35 0%, #0a2048 50%, #0d1b35 100%);
+    border: 1px solid #1e3a5f;
+    border-radius: 16px;
+    padding: 32px 40px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+}
+.hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(100,181,246,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.hero h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.8rem;
+    color: #e8f4fd;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+}
+.hero p {
+    color: #7fa8c8;
+    font-size: 14px;
+    margin: 0;
+    font-weight: 300;
+}
+
+/* Status badges */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Space Mono', monospace;
+}
+.badge-green { background: rgba(72,199,142,0.15); color: #48c78e; border: 1px solid rgba(72,199,142,0.3); }
+.badge-yellow { background: rgba(255,189,46,0.15); color: #ffbd2e; border: 1px solid rgba(255,189,46,0.3); }
+.badge-red { background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }
+
+/* Upload area */
+.upload-card {
+    background: #111827;
+    border: 1.5px dashed #1e3a5f;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+/* Dataframe */
+.stDataFrame { border-radius: 8px; overflow: hidden; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0a0e1a; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────
+PLOTLY_LAYOUT = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="DM Sans", color="#c8d8e8"),
+    xaxis=dict(gridcolor="#1a2a3a", linecolor="#1e3a5f", tickfont=dict(size=11)),
+    yaxis=dict(gridcolor="#1a2a3a", linecolor="#1e3a5f", tickfont=dict(size=11)),
+    margin=dict(l=0, r=0, t=40, b=0),
+)
+COLOR_SEQ = ["#64b5f6", "#4dd0e1", "#81c784", "#ffb74d", "#f48fb1", "#ce93d8", "#80cbc4", "#ffcc80"]
+
+
+def parse_datetime(series):
+    """Try multiple datetime formats."""
+    for fmt in [None, "%Y-%m-%d %H:%M:%S.%f %p", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S %p", "%Y-%m-%d %H:%M:%S"]:
+        try:
+            if fmt is None:
+                parsed = pd.to_datetime(series, infer_datetime_format=True, errors="coerce")
+            else:
+                parsed = pd.to_datetime(series, format=fmt, errors="coerce")
+            if parsed.notna().sum() > 0:
+                return parsed
+        except Exception:
+            continue
+    return pd.to_datetime(series, errors="coerce")
+
+
+# Kolom One Me Pre Screening
+PS_COLS = ["APPID", "APPID ESCORE", "NIP_USER", "USER_NAM", "STATUS",
+           "CREATED_AT", "REASON", "CABANG", "PRODUK", "NIP_CMO",
+           "NAMA_COM", "PisahHarta", "namadealer",
+           "FACT_HISTORICAL_ONE_ME.jenis_cluster", "sales_type"]
+
+# Kolom SLIK
+SLIK_COLS = ["APPID", "MID", "CABANG", "NIK", "Product", "EngineScoring",
+             "MOName", "HitBiroKredit", "HitBiroKreditKonsumen",
+             "Tanggal Hit SLIK", "Timedone Hit SLIK", "Flag",
+             "DataEntryProced", "StatusMa", "MaritalStatus"]
+
+TIMEDONE_COL = "Timedone Hit SLIK"
+TANGGAL_SLIK_COL = "Tanggal Hit SLIK"
+
+@st.cache_data(show_spinner=False)
+def load_prescreening(file_path, sheet_name):
+    if file_path.endswith(".csv"):
+        df = pd.read_csv(file_path)
+    else:
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+    df.columns = df.columns.str.strip()
+    df["APPID"] = pd.to_numeric(df["APPID"], errors="coerce")
+    if "CREATED_AT" in df.columns:
+        df["CREATED_AT"] = parse_datetime(df["CREATED_AT"])
+    # Hanya ambil kolom yang ada
+    keep = [c for c in PS_COLS if c in df.columns]
+    return df[keep]
+
+
+@st.cache_data(show_spinner=False)
+def load_slik(file_path, sheet_name):
+    if file_path.endswith(".csv"):
+        df = pd.read_csv(file_path)
+    else:
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+    df.columns = df.columns.str.strip()
+    df["APPID"] = pd.to_numeric(df["APPID"], errors="coerce")
+    if TIMEDONE_COL in df.columns:
+        df[TIMEDONE_COL] = parse_datetime(df[TIMEDONE_COL])
+    if TANGGAL_SLIK_COL in df.columns:
+        df[TANGGAL_SLIK_COL] = parse_datetime(df[TANGGAL_SLIK_COL])
+    # Hanya ambil kolom yang ada
+    keep = [c for c in SLIK_COLS if c in df.columns]
+    return df[keep]
+
+
+def sla_category(hours):
+    if pd.isna(hours):
+        return "No Data"
+    elif hours <= 1:
+        return "≤ 1 Jam"
+    elif hours <= 3:
+        return "1–3 Jam"
+    elif hours <= 6:
+        return "3–6 Jam"
+    elif hours <= 24:
+        return "6–24 Jam"
+    else:
+        return "> 24 Jam"
+
+
+SLA_CAT_ORDER = ["≤ 1 Jam", "1–3 Jam", "3–6 Jam", "6–24 Jam", "> 24 Jam", "No Data"]
+SLA_CAT_COLOR = {
+    "≤ 1 Jam": "#48c78e",
+    "1–3 Jam": "#64b5f6",
+    "3–6 Jam": "#ffb74d",
+    "6–24 Jam": "#ff7043",
+    "> 24 Jam": "#ff5252",
+    "No Data": "#546e7a",
+}
+
+# ─────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────
+# ── CONFIG PATH FILE ──
+FILE_PS    = "ONE ME PRE SCREENING.xlsx"    # kolom CREATED_AT, CABANG, dll
+FILE_SLIK  = "SLIK.xlsx"                    # kolom Timedone Hit SLIK, dll
+FILE_APPID = "APPID ONE ME PRESCREEN.xlsx"  # master 27k APPID sebagai filter
+SHEET_PS   = "all raw"
+SHEET_SLIK = "Sheet1"
+SHEET_APPID = "Sheet1"
+APPID_COL_NAME = "APPID"                    # nama kolom APPID di file master
+
+with st.sidebar:
+    st.markdown("""
+    <div style='padding: 16px 0 8px;'>
+        <p style='font-family: Space Mono, monospace; font-size: 10px; letter-spacing: 3px; color: #64b5f6; text-transform: uppercase; margin:0;'>SLA MONITOR</p>
+        <p style='font-family: Space Mono, monospace; font-size: 18px; color: #e8f4fd; margin: 4px 0 0;'>Pre Screening<br/>→ SLIK</p>
+    </div>
+    <hr style='border-color: #1e3a5f; margin: 16px 0;'>
+    """, unsafe_allow_html=True)
+
+    st.markdown("** Config File**")
+    ps_path    = st.text_input("File One Me (CREATED_AT)", value=FILE_PS)
+    slik_path  = st.text_input("File SLIK", value=FILE_SLIK)
+    appid_path = st.text_input("File Master APPID", value=FILE_APPID)
+
+    st.markdown("<hr style='border-color: #1e3a5f; margin: 16px 0;'>", unsafe_allow_html=True)
+
+    ps_sheet       = st.text_input("Sheet One Me", value=SHEET_PS)
+    slik_sheet     = st.text_input("Sheet SLIK", value=SHEET_SLIK)
+    appid_sheet    = st.text_input("Sheet APPID List", value=SHEET_APPID)
+    appid_col_name = st.text_input("Kolom APPID di file list", value=APPID_COL_NAME)
+
+    st.markdown("<hr style='border-color: #1e3a5f; margin: 16px 0;'>", unsafe_allow_html=True)
+    st.markdown("""
+    <p style='font-family: Space Mono, monospace; font-size: 9px; color: #3a5a7a; letter-spacing: 1px;'>
+    JOIN: One Me APPID = SLIK APPID<br/>
+    FILTER: APPID List (27k)<br/>
+    SLA: CREATED_AT → Timedone Hit SLIK
+    </p>
+    """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# HERO
+# ─────────────────────────────────────────────
+st.markdown("""
+<div class="hero">
+    <h1> SLA Dashboard</h1>
+    <p>Pre Screening → SLIK · Monitoring waktu proses per aplikasi & cabang</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# MAIN LOGIC
+# ─────────────────────────────────────────────
+import os
+
+missing = []
+if not os.path.exists(ps_path):   missing.append(f" `{ps_path}`")
+if not os.path.exists(slik_path): missing.append(f" `{slik_path}`")
+if missing:
+    st.error("File berikut tidak ditemukan di repo:")
+    for m in missing:
+        st.markdown(m)
+    st.markdown("""
+    **Pastikan ketiga file ini ada di root repo GitHub:**
+    ```
+    ONE ME PRE SCREENING.xlsx
+    SLIK.xlsx
+    APPID_LIST.xlsx        ← opsional, kalau tidak ada semua APPID dipakai
+    ```
+    Lalu ubah nama file di sidebar kalau berbeda.
+    """)
+    st.stop()
+
+# ── Load data ──
+with st.spinner("Memuat & memproses data..."):
+    try:
+        df_ps = load_prescreening(ps_path, ps_sheet)
+    except Exception as e:
+        st.error(f"Gagal baca One Me: {e}")
+        st.stop()
+
+    # ── Filter pakai APPID List (27k) jika file tersedia ──
+    n_ps_raw = len(df_ps)
+    valid_appids = None
+    if os.path.exists(appid_path):
+        try:
+            if appid_path.endswith(".csv"):
+                df_appid = pd.read_csv(appid_path)
+            else:
+                df_appid = pd.read_excel(appid_path, sheet_name=appid_sheet)
+            df_appid.columns = df_appid.columns.str.strip()
+            if appid_col_name in df_appid.columns:
+                valid_appids = set(pd.to_numeric(df_appid[appid_col_name], errors="coerce").dropna().astype(int))
+                df_ps = df_ps[df_ps["APPID"].isin(valid_appids)]
+            else:
+                st.warning(f"Kolom '{appid_col_name}' tidak ditemukan di file APPID list — semua APPID dipakai.")
+        except Exception as e:
+            st.warning(f"File APPID list gagal dibaca: {e} — semua APPID dipakai.")
+    n_ps_filtered = len(df_ps)
+
+    try:
+        df_slik = load_slik(slik_path, slik_sheet)
+    except Exception as e:
+        st.error(f"Gagal baca SLIK: {e}")
+        st.stop()
+
+    if TIMEDONE_COL not in df_slik.columns:
+        st.error(f"Kolom '{TIMEDONE_COL}' tidak ditemukan di file SLIK.")
+        st.stop()
+
+    # ── Dedup SLIK per APPID: ambil Timedone terkecil ──
+    df_slik_dedup = (
+        df_slik
+        .dropna(subset=["APPID"])
+        .sort_values(TIMEDONE_COL)
+        .drop_duplicates(subset=["APPID"], keep="first")
+    )
+
+    # ── LEFT JOIN: One Me (master) ← SLIK via APPID = APPID ──
+    # Rename kolom yang bentrok (CABANG ada di kedua file)
+    df_slik_join = df_slik_dedup.rename(columns={
+        "CABANG": "CABANG_SLIK",
+        "Product": "Product_SLIK",
+    })
+    df = df_ps.merge(df_slik_join, on="APPID", how="left")
+
+    # ── Join status flags ──
+    df["_join_status"] = df[TIMEDONE_COL].apply(
+        lambda x: " Match" if pd.notna(x) else "❌ Tidak Match"
+    )
+
+    # ── SLA ──
+    df["SLA_Hours"]    = (df[TIMEDONE_COL] - df["CREATED_AT"]).dt.total_seconds() / 3600
+    df["SLA_Minutes"]  = df["SLA_Hours"] * 60
+    df["SLA_Hours"]    = df["SLA_Hours"].round(2)
+    df["SLA_Minutes"]  = df["SLA_Minutes"].round(1)
+    df["SLA_Category"] = df["SLA_Hours"].apply(sla_category)
+
+    timedone_col = TIMEDONE_COL  # alias untuk section selanjutnya
+
+    # ── Hitung stats join ──
+    n_ps        = len(df_ps)
+    n_slik      = len(df_slik_dedup)
+    n_matched   = df["_join_status"].eq(" Match").sum()
+    n_unmatched = df["_join_status"].eq(" Tidak Match").sum()
+    appid_set   = set(df_ps["APPID"].dropna().astype(int))
+    slik_set    = set(df_slik_dedup["APPID"].dropna().astype(int))
+    n_slik_only = len(slik_set - appid_set)
+
+# ─────────────────────────────────────────────
+# FILTERS
+# ─────────────────────────────────────────────
+with st.expander(" Filter Data", expanded=False):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        cabang_list = sorted(df["CABANG"].dropna().unique().tolist()) if "CABANG" in df.columns else []
+        sel_cabang = st.multiselect("Cabang", cabang_list, default=[])
+    with col2:
+        prod_col = "PRODUK" if "PRODUK" in df.columns else ("Product_SLIK" if "Product_SLIK" in df.columns else None)
+        if prod_col:
+            prod_list = sorted(df[prod_col].dropna().unique().tolist())
+            sel_prod = st.multiselect("Produk", prod_list, default=[])
+        else:
+            sel_prod = []
+            prod_col = None
+    with col3:
+        date_range = st.date_input(
+            "Tanggal CREATED_AT",
+            value=(df["CREATED_AT"].min().date(), df["CREATED_AT"].max().date()),
+            key="daterange"
+        )
+
+df_f = df.copy()
+if sel_cabang:
+    df_f = df_f[df_f["CABANG"].isin(sel_cabang)]
+if sel_prod and prod_col and prod_col in df_f.columns:
+    df_f = df_f[df_f[prod_col].isin(sel_prod)]
+if len(date_range) == 2:
+    df_f = df_f[
+        (df_f["CREATED_AT"].dt.date >= date_range[0]) &
+        (df_f["CREATED_AT"].dt.date <= date_range[1])
+    ]
+
+df_valid = df_f[df_f["SLA_Hours"].notna() & (df_f["SLA_Hours"] >= 0) & (df_f["_join_status"] == "✅ Match")]
+
+# ─────────────────────────────────────────────
+# JOIN DIAGNOSTICS
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title">🔗 Hasil Tabrakan Data (APPID = APPID)</p>', unsafe_allow_html=True)
+
+# Info filter APPID list
+if valid_appids is not None:
+    st.info(f" Filter aktif: {n_ps_filtered:,} APPID dari {n_ps_raw:,} total One Me ({n_ps_raw - n_ps_filtered:,} di-exclude)")
+
+jc1, jc2, jc3, jc4, jc5 = st.columns(5)
+match_pct = n_matched / n_ps * 100 if n_ps else 0
+jc1.metric("One Me (filtered)", f"{n_ps_filtered:,}", f"dari {n_ps_raw:,} total")
+jc2.metric("SLIK (unique APPID)", f"{n_slik:,}", "setelah dedup")
+jc3.metric(" Match", f"{n_matched:,}", f"{match_pct:.1f}%")
+jc4.metric(" Tidak Match", f"{n_unmatched:,}", f"{100-match_pct:.1f}%")
+jc5.metric("SLIK Only (orphan)", f"{n_slik_only:,}", "APPID ada di SLIK, tidak di One Me")
+
+# Visual bar match rate
+fig_match = go.Figure()
+fig_match.add_trace(go.Bar(
+    x=["Match", "Tidak Match"],
+    y=[n_matched, n_unmatched],
+    marker_color=["#48c78e", "#ff5252"],
+    text=[f"{n_matched:,} ({match_pct:.1f}%)", f"{n_unmatched:,} ({100-match_pct:.1f}%)"],
+    textposition="outside",
+    textfont=dict(size=12),
+))
+fig_match.update_layout(**PLOTLY_LAYOUT, height=220,
+                         title="Join Result — Pre Screening vs SLIK",
+                         title_font=dict(size=12, color="#c8d8e8"),
+                         showlegend=False)
+fig_match.update_yaxes(showgrid=False, showticklabels=False)
+
+jcol1, jcol2 = st.columns([2, 3])
+with jcol1:
+    st.plotly_chart(fig_match, use_container_width=True)
+
+with jcol2:
+    # Tabel preview hasil join
+    preview_cols = ["APPID"]
+    if "USER_NAM" in df.columns: preview_cols.append("USER_NAM")
+    if "CABANG" in df.columns: preview_cols.append("CABANG")
+    preview_cols += ["CREATED_AT", timedone_col, "SLA_Hours", "_join_status"]
+    available_preview = [c for c in preview_cols if c in df.columns]
+
+    tab_match, tab_nomatch = st.tabs([f" Matched ({n_matched:,})", f" Tidak Match ({n_unmatched:,})"])
+    with tab_match:
+        df_matched_preview = df[df["_join_status"] == " Match"][available_preview].head(200)
+        st.dataframe(df_matched_preview, use_container_width=True, hide_index=True, height=180)
+    with tab_nomatch:
+        df_unmatched_preview = df[df["_join_status"] == " Tidak Match"][available_preview].head(200)
+        st.dataframe(df_unmatched_preview, use_container_width=True, hide_index=True, height=180)
+        if n_unmatched > 0:
+            csv_unmatch = df_unmatched_preview.to_csv(index=False).encode()
+            st.download_button(" Download yang tidak match", csv_unmatch, "not_matched.csv", "text/csv")
+
+# ─────────────────────────────────────────────
+# KPI METRICS
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Overview SLA</p>', unsafe_allow_html=True)
+
+k1, k2, k3, k4, k5, k6 = st.columns(6)
+total_apps   = len(df_f)
+matched_f    = df_f["_join_status"].eq(" Match").sum() if "_join_status" in df_f.columns else 0
+avg_sla      = df_valid["SLA_Hours"].mean() if len(df_valid) else 0
+median_sla   = df_valid["SLA_Hours"].median() if len(df_valid) else 0
+count_ok     = (df_valid["SLA_Hours"] <= 1).sum()
+pct_ok       = (count_ok / len(df_valid) * 100) if len(df_valid) else 0
+
+k1.metric("Total Aplikasi", f"{total_apps:,}")
+k2.metric("Match ke SLIK", f"{matched_f:,}", f"{matched_f/total_apps*100:.1f}% matched" if total_apps else "-")
+k3.metric("Avg SLA", f"{avg_sla:.2f} Jam")
+k4.metric("Median SLA", f"{median_sla:.2f} Jam")
+k5.metric("SLA ≤ 1 Jam", f"{count_ok:,}", f"{pct_ok:.1f}%")
+k6.metric("SLA > 24 Jam", f"{(df_valid['SLA_Hours'] > 24).sum():,}")
+
+# ─────────────────────────────────────────────
+# CHARTS ROW 1
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Distribusi SLA</p>', unsafe_allow_html=True)
+c1, c2 = st.columns([3, 2])
+
+with c1:
+    # Histogram SLA
+    fig_hist = px.histogram(
+        df_valid[df_valid["SLA_Hours"] <= 48],
+        x="SLA_Hours", nbins=50,
+        title="Distribusi SLA (jam) — trimmed ≤ 48h",
+        color_discrete_sequence=["#64b5f6"],
+        labels={"SLA_Hours": "SLA (Jam)"}
+    )
+    fig_hist.update_layout(**PLOTLY_LAYOUT, title_font=dict(size=13, color="#c8d8e8"))
+    fig_hist.update_traces(opacity=0.85)
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+with c2:
+    # Donut SLA Category
+    cat_counts = df_f["SLA_Category"].value_counts().reset_index()
+    cat_counts.columns = ["Kategori", "Jumlah"]
+    cat_counts["Kategori"] = pd.Categorical(cat_counts["Kategori"], categories=SLA_CAT_ORDER, ordered=True)
+    cat_counts = cat_counts.sort_values("Kategori")
+
+    fig_pie = go.Figure(go.Pie(
+        labels=cat_counts["Kategori"],
+        values=cat_counts["Jumlah"],
+        hole=0.55,
+        marker=dict(colors=[SLA_CAT_COLOR.get(k, "#546e7a") for k in cat_counts["Kategori"]]),
+        textinfo="percent",
+        textfont=dict(size=11),
+    ))
+    fig_pie.update_layout(**PLOTLY_LAYOUT, title="Kategori SLA", title_font=dict(size=13, color="#c8d8e8"))
+    fig_pie.add_annotation(text=f"<b>{len(df_valid):,}</b><br><span style='font-size:10'>records</span>",
+                           x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#e8f4fd"))
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+# ─────────────────────────────────────────────
+# CHARTS ROW 2 – PER CABANG
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Analisis per Cabang</p>', unsafe_allow_html=True)
+
+if "CABANG" in df_valid.columns:
+    cabang_summary = (
+        df_valid.groupby("CABANG")["SLA_Hours"]
+        .agg(["mean", "median", "max", "count"])
+        .reset_index()
+        .rename(columns={"mean": "Avg SLA", "median": "Median SLA", "max": "Max SLA", "count": "Jumlah"})
+        .sort_values("Avg SLA", ascending=False)
+        .head(25)
+    )
+    cabang_summary[["Avg SLA", "Median SLA", "Max SLA"]] = cabang_summary[["Avg SLA", "Median SLA", "Max SLA"]].round(2)
+
+    c3, c4 = st.columns([3, 2])
+    with c3:
+        fig_bar = px.bar(
+            cabang_summary.sort_values("Avg SLA"),
+            x="Avg SLA", y="CABANG", orientation="h",
+            title="Avg SLA per Cabang (Top 25)",
+            color="Avg SLA",
+            color_continuous_scale=["#48c78e", "#ffb74d", "#ff5252"],
+            text="Avg SLA",
+            labels={"Avg SLA": "Avg SLA (Jam)"}
+        )
+        fig_bar.update_traces(texttemplate="%{text:.1f}h", textposition="outside", textfont_size=10)
+        fig_bar.update_layout(**PLOTLY_LAYOUT, title_font=dict(size=13, color="#c8d8e8"),
+                              coloraxis_showscale=False, height=600)
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    with c4:
+        fig_scatter = px.scatter(
+            cabang_summary,
+            x="Jumlah", y="Avg SLA",
+            size="Jumlah", color="Avg SLA",
+            hover_name="CABANG",
+            title="Volume vs Avg SLA",
+            color_continuous_scale=["#48c78e", "#ffb74d", "#ff5252"],
+            labels={"Jumlah": "Jumlah Aplikasi", "Avg SLA": "Avg SLA (Jam)"},
+        )
+        fig_scatter.update_layout(**PLOTLY_LAYOUT, title_font=dict(size=13, color="#c8d8e8"),
+                                  coloraxis_showscale=False)
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+# ─────────────────────────────────────────────
+# CHARTS ROW 3 – TREND
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Trend Harian</p>', unsafe_allow_html=True)
+
+if df_valid["CREATED_AT"].notna().sum() > 0:
+    df_valid2 = df_valid.copy()
+    df_valid2["Date"] = df_valid2["CREATED_AT"].dt.date
+    daily = (
+        df_valid2.groupby("Date")["SLA_Hours"]
+        .agg(Avg="mean", Median="median", Count="count")
+        .reset_index()
+    )
+    daily[["Avg", "Median"]] = daily[["Avg", "Median"]].round(2)
+
+    fig_line = make_subplots(specs=[[{"secondary_y": True}]])
+    fig_line.add_trace(go.Scatter(x=daily["Date"], y=daily["Avg"], name="Avg SLA",
+                                  line=dict(color="#64b5f6", width=2.5), mode="lines+markers",
+                                  marker=dict(size=5)), secondary_y=False)
+    fig_line.add_trace(go.Scatter(x=daily["Date"], y=daily["Median"], name="Median SLA",
+                                  line=dict(color="#48c78e", width=2, dash="dot"), mode="lines"),
+                       secondary_y=False)
+    fig_line.add_trace(go.Bar(x=daily["Date"], y=daily["Count"], name="Jumlah Aplikasi",
+                              marker_color="rgba(100,181,246,0.15)", marker_line_width=0),
+                       secondary_y=True)
+    fig_line.update_layout(**PLOTLY_LAYOUT, title="Trend SLA Harian",
+                           title_font=dict(size=13, color="#c8d8e8"),
+                           legend=dict(orientation="h", y=1.08, font=dict(size=11)))
+    fig_line.update_yaxes(title_text="SLA (Jam)", secondary_y=False, gridcolor="#1a2a3a")
+    fig_line.update_yaxes(title_text="Jumlah Aplikasi", secondary_y=True, showgrid=False)
+    st.plotly_chart(fig_line, use_container_width=True)
+
+# ─────────────────────────────────────────────
+# SUMMARY TABLE
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Summary Tabel</p>', unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["Per Cabang", "Per Produk", "Raw Data"])
+
+with tab1:
+    if "CABANG" in df_valid.columns:
+        full_cabang = (
+            df_valid.groupby("CABANG")["SLA_Hours"]
+            .agg(
+                Total_Record="count",
+                Avg_SLA_Jam=lambda x: round(x.mean(), 2),
+                Median_SLA_Jam=lambda x: round(x.median(), 2),
+                Min_SLA_Jam=lambda x: round(x.min(), 2),
+                Max_SLA_Jam=lambda x: round(x.max(), 2),
+            )
+            .reset_index()
+            .sort_values("Avg_SLA_Jam", ascending=False)
+        )
+        full_cabang["SLA_≤1Jam"] = df_valid[df_valid["SLA_Hours"] <= 1].groupby("CABANG").size().reindex(full_cabang["CABANG"]).fillna(0).astype(int).values
+        full_cabang["%_≤1Jam"] = (full_cabang["SLA_≤1Jam"] / full_cabang["Total_Record"] * 100).round(1).astype(str) + "%"
+        st.dataframe(full_cabang, use_container_width=True, hide_index=True)
+
+with tab2:
+    _prod_col = "PRODUK" if "PRODUK" in df_valid.columns else ("Product_SLIK" if "Product_SLIK" in df_valid.columns else None)
+    if _prod_col:
+        prod_sum = (
+            df_valid.groupby(_prod_col)["SLA_Hours"]
+            .agg(Total_Record="count",
+                 Avg_SLA_Jam=lambda x: round(x.mean(), 2),
+                 Median_SLA_Jam=lambda x: round(x.median(), 2),
+                 Max_SLA_Jam=lambda x: round(x.max(), 2))
+            .reset_index()
+            .sort_values("Avg_SLA_Jam", ascending=False)
+        )
+        st.dataframe(prod_sum, use_container_width=True, hide_index=True)
+    else:
+        st.info("Kolom PRODUK tidak ditemukan.")
+
+with tab3:
+    show_cols = [
+        "APPID", "USER_NAM", "NIP_USER", "CREATED_AT",
+        "CABANG", "PRODUK", "STATUS", "REASON", "sales_type",
+        "FACT_HISTORICAL_ONE_ME.jenis_cluster",
+        # SLIK fields
+        "MID", "EngineScoring", "StatusMa", "Flag",
+        TIMEDONE_COL, "Tanggal Hit SLIK",
+        # Computed
+        "SLA_Hours", "SLA_Minutes", "SLA_Category", "_join_status"
+    ]
+    available = [c for c in show_cols if c in df_f.columns]
+    st.dataframe(df_f[available].head(1000), use_container_width=True, hide_index=True)
+    st.caption(f"Menampilkan 1,000 dari {len(df_f):,} baris")
+
+# ─────────────────────────────────────────────
+# DOWNLOAD
+# ─────────────────────────────────────────────
+st.markdown('<p class="section-title"> Export</p>', unsafe_allow_html=True)
+
+d1, d2 = st.columns(2)
+with d1:
+    dl_cols = ["APPID","USER_NAM","CREATED_AT","CABANG","PRODUK","STATUS",
+               "MID","EngineScoring","StatusMa",TIMEDONE_COL,
+               "SLA_Hours","SLA_Minutes","SLA_Category","_join_status"]
+    csv_detail = df_f[[c for c in dl_cols if c in df_f.columns]].to_csv(index=False).encode()
+    st.download_button(" Download Detail SLA (.csv)", csv_detail, "detail_sla.csv", "text/csv")
+
+with d2:
+    if "CABANG" in df_valid.columns:
+        csv_summary = full_cabang.to_csv(index=False).encode()
+        st.download_button(" Download Summary per Cabang (.csv)", csv_summary, "summary_cabang.csv", "text/csv")
